@@ -11,6 +11,18 @@
   var mounted = new Map();
   var metaCache = null;
   var metaPromise = null;
+  var invalidMetaWarned = false;
+
+  function isDebugLoggingEnabled() {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    if (window.__DUO_CATS_DEBUG__ === true) {
+      return true;
+    }
+    var host = window.location && window.location.hostname ? window.location.hostname : "";
+    return host === "localhost" || host === "127.0.0.1";
+  }
 
   function fetchMeta(url) {
     if (metaCache) {
@@ -184,34 +196,70 @@
     var speed = Number.isFinite(props.speed) && props.speed > 0 ? props.speed : 1;
 
     var anim = useSpriteAnimator(meta, activeClipName, paused, speed);
+    var debugFrameCounterRef = React.useRef(0);
+
+    React.useEffect(
+      function () {
+        if (!isDebugLoggingEnabled() || !anim.rect || anim.frameId === null) {
+          return;
+        }
+        debugFrameCounterRef.current += 1;
+        if (debugFrameCounterRef.current % 30 === 0) {
+          console.log(
+            "[DuoCats]",
+            "clip=" + String(activeClipName),
+            "frameId=" + String(anim.frameId),
+            "x=" + String(anim.rect.x),
+            "y=" + String(anim.rect.y)
+          );
+        }
+      },
+      [activeClipName, anim.frameId, anim.rect]
+    );
+
     if (!meta || !anim.rect) {
       return null;
     }
 
     var scale = Number.isFinite(props.scale) && props.scale > 0 ? props.scale : 0.25;
-    var frameW = meta.frameW;
-    var frameH = meta.frameH;
-    var atlasW = meta.frameW * meta.cols;
-    var atlasH = meta.frameH * meta.rows;
+    var frameW = Number.isFinite(meta.frameW) ? meta.frameW : 0;
+    var frameH = Number.isFinite(meta.frameH) ? meta.frameH : 0;
+    var cols = Number.isFinite(meta.cols) ? meta.cols : 0;
+    var rows = Number.isFinite(meta.rows) ? meta.rows : 0;
+    var atlasW = frameW * cols;
+    var atlasH = frameH * rows;
+    if (!meta.imagePath || frameW <= 0 || frameH <= 0 || cols <= 0 || rows <= 0 || atlasW <= 0 || atlasH <= 0) {
+      if (!invalidMetaWarned) {
+        invalidMetaWarned = true;
+        console.warn("[DuoCats] Invalid atlas metadata; sprite will not render.");
+      }
+      return null;
+    }
+
+    var scaledW = frameW * scale;
+    var scaledH = frameH * scale;
+    var scaledAtlasW = atlasW * scale;
+    var scaledAtlasH = atlasH * scale;
+    var scaledBgX = -anim.rect.x * scale;
+    var scaledBgY = -anim.rect.y * scale;
 
     var wrapperStyle = {
-      width: String(frameW * scale) + "px",
-      height: String(frameH * scale) + "px",
+      width: String(scaledW) + "px",
+      height: String(scaledH) + "px",
       overflow: "hidden",
       transformOrigin: "center bottom",
     };
 
     var frameStyle = {
-      width: String(frameW) + "px",
-      height: String(frameH) + "px",
-      transform: "scale(" + String(scale) + ")",
-      transformOrigin: "top left",
+      width: "100%",
+      height: "100%",
       backgroundImage: "url(" + String(meta.imagePath) + ")",
       backgroundRepeat: "no-repeat",
-      backgroundSize: String(atlasW) + "px " + String(atlasH) + "px",
+      backgroundSize: String(scaledAtlasW) + "px " + String(scaledAtlasH) + "px",
       // Atlas rects are sheet-space pixel offsets; negative x/y selects that frame cell.
-      backgroundPosition: String(-anim.rect.x) + "px " + String(-anim.rect.y) + "px",
+      backgroundPosition: String(scaledBgX) + "px " + String(scaledBgY) + "px",
       imageRendering: "pixelated",
+      willChange: "background-position",
     };
 
     var className = props.className || "duo-cat-sprite";
