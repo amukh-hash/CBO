@@ -340,6 +340,12 @@
 
     var hoverPlayedRef = React.useRef(false);
     var initialClipAppliedRef = React.useRef(false);
+    var frameNodeRef = React.useRef(null);
+    var metaShapeWarnedRef = React.useRef(false);
+    var motionProbeActiveRef = React.useRef(false);
+    var motionProbeTimerRef = React.useRef(null);
+    var motionProbeRectsRef = React.useRef(Object.create(null));
+    var motionProbeFailureRef = React.useRef(Object.create(null));
 
     React.useEffect(
       function () {
@@ -383,6 +389,27 @@
     var hoverClip = props.hoverClip || "nose_boop";
     var hoverClipExists = !!(meta && meta.clips && hoverClip && meta.clips[hoverClip]);
     var switchClipOnHover = props.switchClipOnHover !== false;
+    var idleProbeClip = baseClipExists ? baseClip : resolveDefaultClip(meta);
+
+    React.useEffect(
+      function () {
+        if (!isDebugLoggingEnabled() || !meta || metaShapeWarnedRef.current) {
+          return;
+        }
+        if (meta.frameW === 512 && meta.frameH === 256 && meta.cols === 3 && meta.rows === 2) {
+          return;
+        }
+        metaShapeWarnedRef.current = true;
+        console.error(
+          "[DuoCats] Unexpected atlas grid metadata.",
+          "frameW=" + String(meta.frameW),
+          "frameH=" + String(meta.frameH),
+          "cols=" + String(meta.cols),
+          "rows=" + String(meta.rows)
+        );
+      },
+      [meta]
+    );
 
     React.useEffect(
       function () {
@@ -426,6 +453,81 @@
 
     var anim = useSpriteAnimator(meta, ctrl.clipName, paused, speed, ctrl.onDone, ctrl.playNonce);
     var debugFrameCounterRef = React.useRef(0);
+    var activeClip = meta && meta.clips ? meta.clips[ctrl.clipName] : null;
+    var clipImagePath = activeClip && activeClip.imagePath ? activeClip.imagePath : meta && meta.imagePath ? meta.imagePath : "";
+
+    React.useEffect(
+      function () {
+        if (!isDebugLoggingEnabled() || !meta || !meta.clips) {
+          return undefined;
+        }
+        if (paused || speed <= 0) {
+          return undefined;
+        }
+        if (!idleProbeClip || ctrl.clipName !== idleProbeClip) {
+          return undefined;
+        }
+        var clipCfg = meta.clips[ctrl.clipName];
+        if (!clipCfg || clipCfg.loop !== true) {
+          return undefined;
+        }
+
+        motionProbeActiveRef.current = true;
+        motionProbeRectsRef.current = Object.create(null);
+        if (anim.rect) {
+          motionProbeRectsRef.current[String(anim.rect.x) + "," + String(anim.rect.y)] = true;
+        }
+
+        if (motionProbeTimerRef.current !== null) {
+          clearTimeout(motionProbeTimerRef.current);
+          motionProbeTimerRef.current = null;
+        }
+
+        var probeKey = String(ctrl.clipName) + "|" + String(clipImagePath);
+        motionProbeTimerRef.current = window.setTimeout(function () {
+          motionProbeTimerRef.current = null;
+          if (!motionProbeActiveRef.current) {
+            return;
+          }
+          var distinctRectCount = Object.keys(motionProbeRectsRef.current).length;
+          if (distinctRectCount >= 2) {
+            return;
+          }
+          if (motionProbeFailureRef.current[probeKey]) {
+            return;
+          }
+          motionProbeFailureRef.current[probeKey] = true;
+          console.error(
+            "[DuoCats] Idle motion self-check failed.",
+            "clip=" + String(ctrl.clipName),
+            "imagePath=" + String(clipImagePath),
+            "fps=" + String(clipCfg.fps),
+            "loop=" + String(clipCfg.loop),
+            "paused=" + String(paused),
+            "speed=" + String(speed)
+          );
+        }, 1100);
+
+        return function () {
+          motionProbeActiveRef.current = false;
+          if (motionProbeTimerRef.current !== null) {
+            clearTimeout(motionProbeTimerRef.current);
+            motionProbeTimerRef.current = null;
+          }
+        };
+      },
+      [clipImagePath, ctrl.clipName, idleProbeClip, meta, paused, speed]
+    );
+
+    React.useEffect(
+      function () {
+        if (!motionProbeActiveRef.current || !anim.rect) {
+          return;
+        }
+        motionProbeRectsRef.current[String(anim.rect.x) + "," + String(anim.rect.y)] = true;
+      },
+      [anim.frameId, anim.rect]
+    );
 
     React.useEffect(
       function () {
@@ -439,6 +541,22 @@
         var debugAtlasH = (Number.isFinite(meta.frameH) ? meta.frameH : 0) * (Number.isFinite(meta.rows) ? meta.rows : 0);
         var debugBgPos = String(-anim.rect.x * debugScale) + "px " + String(-anim.rect.y * debugScale) + "px";
         var debugBgSize = String(debugAtlasW * debugScale) + "px " + String(debugAtlasH * debugScale) + "px";
+        var computedBgPos = "";
+        var computedMismatch = false;
+        if (frameNodeRef.current && window.getComputedStyle) {
+          var computed = window.getComputedStyle(frameNodeRef.current);
+          computedBgPos = computed.backgroundPosition || "";
+          var parts = computedBgPos.split(/\s+/);
+          if (parts.length >= 2) {
+            var compX = parseFloat(parts[0]);
+            var compY = parseFloat(parts[1]);
+            var expectedX = -anim.rect.x * debugScale;
+            var expectedY = -anim.rect.y * debugScale;
+            if (Number.isFinite(compX) && Number.isFinite(compY)) {
+              computedMismatch = Math.abs(compX - expectedX) > 0.75 || Math.abs(compY - expectedY) > 0.75;
+            }
+          }
+        }
         debugFrameCounterRef.current += 1;
         if (debugFrameCounterRef.current % 5 === 0) {
           console.log(
@@ -450,9 +568,17 @@
             "bgPos=" + debugBgPos,
             "bgSize=" + debugBgSize,
             "img=" + String(debugImagePath),
+            "computedBgPos=" + String(computedBgPos),
             "fps=" + String(debugClip && debugClip.fps),
             "loop=" + String(debugClip && debugClip.loop)
           );
+          if (computedMismatch) {
+            console.warn(
+              "[DuoCats] Computed background-position mismatch.",
+              "expected=" + debugBgPos,
+              "computed=" + computedBgPos
+            );
+          }
         }
       },
       [anim.frameId, anim.rect, ctrl.clipName, meta, props.scale]
@@ -469,8 +595,6 @@
     var rows = Number.isFinite(meta.rows) ? meta.rows : 0;
     var atlasW = frameW * cols;
     var atlasH = frameH * rows;
-    var activeClip = meta.clips[ctrl.clipName];
-    var clipImagePath = activeClip && activeClip.imagePath ? activeClip.imagePath : meta.imagePath;
     if (!clipImagePath || frameW <= 0 || frameH <= 0 || cols <= 0 || rows <= 0 || atlasW <= 0 || atlasH <= 0) {
       if (!invalidMetaWarned) {
         invalidMetaWarned = true;
@@ -535,7 +659,7 @@
           onHoverStart: handleHoverStart,
           onHoverEnd: handleHoverEnd,
         },
-        h("div", { className: spriteClassName, style: frameStyle })
+        h("div", { className: spriteClassName, style: frameStyle, ref: frameNodeRef })
       );
     }
 
@@ -547,7 +671,7 @@
         onMouseEnter: handleHoverStart,
         onMouseLeave: handleHoverEnd,
       },
-      h("div", { className: spriteClassName, style: frameStyle })
+      h("div", { className: spriteClassName, style: frameStyle, ref: frameNodeRef })
     );
   }
 

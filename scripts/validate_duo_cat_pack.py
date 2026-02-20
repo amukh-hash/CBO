@@ -21,6 +21,24 @@ from _duo_cat_pack import (
 )
 
 MIN_ALPHA_PIXELS = 1500
+MIN_ADJACENT_DIFF_PIXELS = 200
+
+
+def _diff_pixel_count(image_a: Image.Image, image_b: Image.Image) -> int:
+    bytes_a = image_a.tobytes()
+    bytes_b = image_b.tobytes()
+    if len(bytes_a) != len(bytes_b):
+        raise ValueError("Cannot compare frames with different buffer sizes")
+    count = 0
+    for idx in range(0, len(bytes_a), 4):
+        if (
+            bytes_a[idx] != bytes_b[idx]
+            or bytes_a[idx + 1] != bytes_b[idx + 1]
+            or bytes_a[idx + 2] != bytes_b[idx + 2]
+            or bytes_a[idx + 3] != bytes_b[idx + 3]
+        ):
+            count += 1
+    return count
 
 
 def _validate_meta(meta_path: Path) -> dict:
@@ -74,12 +92,14 @@ def _validate_outputs(root: Path, clip: str, atlas: Path) -> None:
             raise ValueError(f"{atlas} must be {ATLAS_W}x{ATLAS_H}, got {atlas_img.size}")
         # Catch accidental packer regressions where every atlas cell is duplicated.
         cell_hashes: list[str] = []
+        cell_images: list[Image.Image] = []
         for idx in range(TOTAL_FRAMES):
             col = idx % 3
             row = idx // 3
             x0 = col * FRAME_W
             y0 = row * FRAME_H
             cell_img = atlas_img.crop((x0, y0, x0 + FRAME_W, y0 + FRAME_H))
+            cell_images.append(cell_img)
             alpha_band = cell_img.getchannel("A")
             alpha_hist = alpha_band.histogram()
             alpha_count = sum(alpha_hist[9:])
@@ -94,6 +114,13 @@ def _validate_outputs(root: Path, clip: str, atlas: Path) -> None:
             raise ValueError(f"{atlas} snuggle_idle must contain at least 2 distinct frames")
         if clip in SEAM_CLIPS and cell_hashes[0] != cell_hashes[5]:
             raise ValueError(f"{atlas} seam check failed: frame 0 and frame 5 differ")
+        adjacent_diffs = [_diff_pixel_count(cell_images[idx], cell_images[idx + 1]) for idx in range(TOTAL_FRAMES - 1)]
+        if max(adjacent_diffs) < MIN_ADJACENT_DIFF_PIXELS:
+            raise ValueError(
+                f"{atlas} has no visible frame deltas (max adjacent pixel diff={max(adjacent_diffs)}, min={MIN_ADJACENT_DIFF_PIXELS})"
+            )
+        for cell_img in cell_images:
+            cell_img.close()
 
 
 def validate() -> None:
