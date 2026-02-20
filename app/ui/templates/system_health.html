@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>System Health</h1>
+<div class="grid">
+  <div class="card"><strong>Backups</strong><div>{{ backup_count }}</div></div>
+  <div class="card"><strong>Document Hash Failures</strong><div>{{ doc_failures|length }}</div></div>
+  <div class="card"><strong>Audit Chain Failures</strong><div>{{ audit_failures|length }}</div></div>
+</div>
+<div class="card">
+  <form method="post" action="/health/backup">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <button type="submit">Create Backup Now</button>
+  </form>
+</div>
+<div class="card">
+  <form method="post" action="/health/restore-test">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <button type="submit">Run Restore Test</button>
+  </form>
+</div>
+{% endblock %}

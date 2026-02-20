@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><meta name="csrf-token" content="{{ csrf_token }}" /><link rel="stylesheet" href="/static/styles.css" /><script src="/static/csrf.js" defer></script><title>Login</title></head>
+<body><main>
+<div class="card">
+  <h1>CB Organizer</h1>
+  <p class="small">Single-user lock screen. Enter your 4-digit PIN.</p>
+  {% if error == "invalid" %}<p class="small">PIN incorrect. Try again.</p>{% endif %}
+  {% if error == "pin" %}<p class="small">PIN must be exactly 4 numbers.</p>{% endif %}
+  {% if error == "disabled" %}<p class="small">Account creation is disabled in single-user mode.</p>{% endif %}
+  {% if error == "csrf" %}<p class="small">Session refreshed. Please enter your PIN again.</p>{% endif %}
+  <form method="post" action="/auth/login">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <label>PIN (4 digits)<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" minlength="4" required /></label>
+    <button type="submit">Unlock</button>
+  </form>
+</div>
+</main></body></html>

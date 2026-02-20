@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="csrf-token" content="{{ csrf_token }}" />
+  <title>CB Organizer</title>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin="anonymous" defer></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin="anonymous" defer></script>
+  <script src="https://unpkg.com/framer-motion@11.3.19/dist/framer-motion.js" crossorigin="anonymous" defer></script>
+  <script src="/static/csrf.js?v=cat-tree-30" defer></script>
+  <script src="/static/cat_overlay_react.js?v=cat-tree-30" defer></script>
+  <script src="/static/duo_cat_mount.js?v=cat-tree-30" defer></script>
+  <link rel="stylesheet" href="/static/styles.css?v=cat-tree-30" />
+  <style>
+    /* Fallback to ensure vertical left nav even if an older cached stylesheet is still applied. */
+    body.app-shell { display: grid !important; grid-template-columns: 300px 1fr !important; align-items: start !important; }
+    .left-tree { min-height: 100vh !important; border-right: 1px solid rgba(255, 181, 222, 0.42) !important; }
+    .tree-nav { display: flex !important; flex-direction: column !important; gap: 14px !important; }
+    .tree-shelf { display: block !important; }
+    .tree-tab { display: block !important; }
+    .content-shell { margin: 0 !important; max-width: none !important; padding: 24px 20px 30px !important; }
+  </style>
+</head>
+{% set current_path = request.url.path %}
+{% set nav_state = 0 %}
+{% set active_tab = "dashboard" %}
+{% if current_path.startswith("/providers") %}
+  {% set nav_state = 1 %}
+  {% set active_tab = "providers" %}
+{% elif current_path.startswith("/policies") %}
+  {% set nav_state = 2 %}
+  {% set active_tab = "policies" %}
+{% elif current_path.startswith("/expenses") %}
+  {% set nav_state = 3 %}
+  {% set active_tab = "expenses" %}
+{% elif current_path.startswith("/health") %}
+  {% set nav_state = 4 %}
+  {% set active_tab = "health" %}
+{% elif current_path.startswith("/exports") %}
+  {% set nav_state = 5 %}
+  {% set active_tab = "exports" %}
+{% endif %}
+<body class="app-shell cat-state-{{ nav_state }}">
+<aside class="left-tree">
+  <div class="tree-scene">
+    <h1 class="tree-title">CB Organizer</h1>
+    <p class="tree-subtitle">Cat Tree Navigation</p>
+    <div class="tree-base" aria-hidden="true"></div>
+    <div class="tree-trunk" aria-hidden="true"></div>
+    <div class="tree-condo" aria-hidden="true"></div>
+    <div class="tree-condo-roof" aria-hidden="true"></div>
+    <div class="tree-condo-legs" aria-hidden="true"></div>
+    <div class="hanging-toy toy-a" aria-hidden="true"></div>
+    <div class="hanging-toy toy-b" aria-hidden="true"></div>
+    <nav class="tree-nav" aria-label="Primary">
+      <div class="tree-shelf shelf-rest side-right" data-cat-rest="top">
+        <div class="shelf-board cat-only">
+          <span class="visually-hidden">Top cat perch</span>
+        </div>
+      </div>
+
+      <div class="tree-shelf shelf-0 side-left" data-tab-index="0">
+        <div class="shelf-board">
+          <a class="tree-tab{% if active_tab == 'dashboard' %} active{% endif %}" href="/" data-state="0">Dashboard</a>
+        </div>
+      </div>
+
+      <div class="tree-shelf shelf-1 side-right" data-tab-index="1">
+        <div class="shelf-board">
+          <a class="tree-tab{% if active_tab == 'providers' %} active{% endif %}" href="/providers" data-state="1">Providers</a>
+        </div>
+      </div>
+
+      <div class="tree-shelf shelf-2 side-left" data-tab-index="2">
+        <div class="shelf-board">
+          <a class="tree-tab{% if active_tab == 'policies' %} active{% endif %}" href="/policies" data-state="2">Policies &amp; Docs</a>
+        </div>
+      </div>
+
+      <div class="tree-shelf shelf-3 side-right" data-tab-index="3">
+        <div class="shelf-board">
+          <a class="tree-tab{% if active_tab == 'expenses' %} active{% endif %}" href="/expenses" data-state="3">Expenses</a>
+        </div>
+      </div>
+
+      <div class="tree-shelf shelf-4 side-left" data-tab-index="4">
+        <div class="shelf-board">
+          <a class="tree-tab{% if active_tab == 'health' %} active{% endif %}" href="/health" data-state="4">System Health</a>
+        </div>
+      </div>
+
+      <div class="tree-shelf shelf-5 side-right" data-tab-index="5">
+        <div class="shelf-board">
+          <a class="tree-tab{% if active_tab == 'exports' %} active{% endif %}" href="/exports/archive.zip" data-state="5">Export ZIP</a>
+        </div>
+      </div>
+
+      <div class="tree-shelf shelf-6 side-left">
+        <div class="shelf-board">
+          <form method="post" action="/auth/logout">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+            <button type="submit" class="tree-tab tree-lock">Lock</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="tree-shelf shelf-rest side-left" data-cat-rest="bottom">
+        <div class="shelf-board cat-only">
+          <span class="visually-hidden">Bottom cat perch</span>
+        </div>
+      </div>
+    </nav>
+
+    <div
+      id="cat-overlay-root"
+      class="cat-overlay-root"
+      aria-hidden="true"
+      data-initial-state="{{ nav_state }}"
+      data-cats-base="/static/assets/cats/"
+      data-cats-version="?v=cat-tree-30"
+    ></div>
+  </div>
+</aside>
+<main class="content-shell">
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

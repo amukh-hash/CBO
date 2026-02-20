@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Dashboard</h1>
+<div class="grid">
+  <div class="card"><strong>Providers</strong><div>{{ provider_count }}</div></div>
+  <div class="card"><strong>Month Expenses</strong><div>${{ '%.2f'|format(monthly_expense / 100) }}</div></div>
+  <div class="card"><strong>Month Premium</strong><div>${{ '%.2f'|format(monthly_premium / 100) }}</div></div>
+  <div class="card"><strong>Month Total</strong><div>${{ '%.2f'|format(monthly_total / 100) }}</div></div>
+  <div class="card"><strong>Documents</strong><div>{{ docs_count }}</div></div>
+</div>
+<div class="card">
+  <h2>Cozy Inventory</h2>
+  <div class="inventory-grid" role="grid" aria-label="Inventory Slots">
+    {% for slot in inventory_slots %}
+    <button
+      type="button"
+      class="inventory-slot{% if slot.filled %} filled{% else %} empty{% endif %}"
+      style="--slot-index: {{ slot.index }};"
+      role="gridcell"
+      aria-label="Inventory slot {{ slot.index + 1 }} {% if slot.filled %}filled{% else %}empty{% endif %}"
+    >
+      <span class="slot-pixel-icon" aria-hidden="true">{% if slot.filled %}+{% else %}-{% endif %}</span>
+    </button>
+    {% endfor %}
+  </div>
+</div>
+<div class="card">
+  <h2>Appointments Calendar</h2>
+  <div class="calendar-controls">
+    <a href="/?year={{ prev_year }}&month={{ prev_month }}" aria-label="Previous month">Previous</a>
+    <strong>{{ current_month_label }}</strong>
+    <a href="/?year={{ next_year }}&month={{ next_month }}" aria-label="Next month">Next</a>
+  </div>
+  <table class="calendar-table">
+    <thead>
+      <tr>
+        <th scope="col">Mon</th>
+        <th scope="col">Tue</th>
+        <th scope="col">Wed</th>
+        <th scope="col">Thu</th>
+        <th scope="col">Fri</th>
+        <th scope="col">Sat</th>
+        <th scope="col">Sun</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for week in weeks %}
+      <tr>
+        {% for day in week %}
+        <td class="calendar-day{% if not day.in_month %} out-month{% endif %}">
+          <div class="day-number">{{ day.day_num }}</div>
+          {% for appt in day.appointments %}
+          <button
+            type="button"
+            class="appointment-pill"
+            style="--appt-color: {{ appt.provider_color }};"
+            data-provider="{{ appt.provider_name }}"
+            data-specialty="{{ appt.provider_specialty }}"
+            data-time="{{ appt.scheduled_at_iso }}"
+            data-display-time="{{ appt.time }}"
+            data-invoice="{{ appt.estimated_invoice_cents }}"
+            data-location="{{ appt.location_name }}"
+            data-address="{{ appt.facility_address }}"
+            data-prep="{{ appt.prep_notes }}"
+            data-notes="{{ appt.notes }}"
+          >
+            {{ appt.time }} {{ appt.provider_name }}
+          </button>
+          {% endfor %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<div class="card">
+  <h2>Add Appointment</h2>
+  {% if providers %}
+  <form method="post" action="/appointments/add">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <label>Provider
+      <select name="provider_id" id="provider-select" required>
+        {% for p in providers %}
+        <option value="{{ p.id }}" data-copay="{{ p.estimated_copay_cents }}">{{ p.name }}{% if p.specialty %} ({{ p.specialty }}){% endif %}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Date<input name="appointment_date" type="date" required /></label>
+    <label>Time<input name="appointment_time" type="time" required /></label>
+    <label>Estimated Invoice (cents)<input name="estimated_invoice_cents" id="estimated-invoice" type="number" min="0" value="0" required /></label>
+    <label>Location<input name="location_name" placeholder="Office name / facility" /></label>
+    <label>Facility Address<textarea name="facility_address" rows="2" placeholder="Street, city, state"></textarea></label>
+    <label>Notes To Bring Up<textarea name="prep_notes" rows="3" placeholder="Questions or updates for this visit"></textarea></label>
+    <label>Appointment Notes<textarea name="notes" rows="3" placeholder="Any context for this appointment"></textarea></label>
+    <button type="submit">Add Appointment</button>
+  </form>
+  {% else %}
+  <p class="small">Add a provider first before scheduling appointments.</p>
+  {% endif %}
+</div>
+<div class="card">
+  <h2>Recent Expenses</h2>
+  <table>
+    <tr><th>ID</th><th>Category</th><th>Cents</th><th>Date</th></tr>
+    {% for e in recent %}<tr><td>{{ e.id }}</td><td>{{ e.category }}</td><td>{{ e.amount_cents }}</td><td>{{ e.incurred_at }}</td></tr>{% endfor %}
+  </table>
+</div>
+<dialog id="appointment-dialog">
+  <h3 id="dialog-provider"></h3>
+  <p><strong>Specialty:</strong> <span id="dialog-specialty"></span></p>
+  <p><strong>When:</strong> <span id="dialog-time"></span></p>
+  <p><strong>Estimated Invoice:</strong> $<span id="dialog-invoice"></span></p>
+  <p><strong>Location:</strong> <span id="dialog-location"></span></p>
+  <p><strong>Address:</strong> <span id="dialog-address"></span></p>
+  <p><strong>Notes To Bring Up:</strong> <span id="dialog-prep"></span></p>
+  <p><strong>Appointment Notes:</strong> <span id="dialog-notes"></span></p>
+  <form method="dialog">
+    <button type="submit">Close</button>
+  </form>
+</dialog>
+<script>
+  (function () {
+    var providerSelect = document.getElementById("provider-select");
+    var invoiceInput = document.getElementById("estimated-invoice");
+    if (providerSelect && invoiceInput) {
+      var syncCopay = function () {
+        var selected = providerSelect.options[providerSelect.selectedIndex];
+        var copay = selected ? selected.getAttribute("data-copay") : "0";
+        invoiceInput.value = copay || "0";
+      };
+      syncCopay();
+      providerSelect.addEventListener("change", syncCopay);
+    }
+
+    var dialog = document.getElementById("appointment-dialog");
+    var pills = document.querySelectorAll(".appointment-pill");
+    var toMoney = function (cents) {
+      var value = parseInt(cents || "0", 10);
+      return (value / 100).toFixed(2);
+    };
+    pills.forEach(function (pill) {
+      pill.addEventListener("click", function () {
+        document.getElementById("dialog-provider").textContent = pill.dataset.provider || "";
+        document.getElementById("dialog-specialty").textContent = pill.dataset.specialty || "-";
+        document.getElementById("dialog-time").textContent = pill.dataset.time || "";
+        document.getElementById("dialog-invoice").textContent = toMoney(pill.dataset.invoice);
+        document.getElementById("dialog-location").textContent = pill.dataset.location || "-";
+        document.getElementById("dialog-address").textContent = pill.dataset.address || "-";
+        document.getElementById("dialog-prep").textContent = pill.dataset.prep || "-";
+        document.getElementById("dialog-notes").textContent = pill.dataset.notes || "-";
+        if (dialog && dialog.showModal) {
+          dialog.showModal();
+        }
+      });
+    });
+  })();
+</script>
+{% endblock %}

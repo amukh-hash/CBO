@@ -1,0 +1,52 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install .[dev]
+      - name: Ruff
+        run: ruff check app tests
+      - name: Mypy
+        run: mypy app
+      - name: Bandit
+        run: bandit -q -r app
+      - name: Pytest
+        run: pytest
+      - name: Validate Release (dev mode)
+        run: |
+          export CB_ORGANIZER_PASSPHRASE="ci-passphrase"
+          python scripts/run_dev.py &
+          APP_PID=$!
+          sleep 4
+          python scripts/validate_release.py --mode=dev
+          kill $APP_PID || true
+
+  package-smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Runtime
+        run: |
+          python -m pip install --upgrade pip
+          pip install .[dev]
+      - name: Build Artifacts
+        run: python scripts/build_release.py

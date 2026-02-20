@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Duo Cat Atlas Preview</h1>
+
+<div class="card">
+  <h2>Controls</h2>
+  <div class="grid">
+    <label>
+      Clip
+      <select id="duo-clip">
+        <option value="duo_groom">duo_groom</option>
+        <option value="duo_play">duo_play</option>
+        <option value="duo_snuggle" selected>duo_snuggle</option>
+      </select>
+    </label>
+    <label>
+      Scale
+      <select id="duo-scale">
+        <option value="0.2">0.20x</option>
+        <option value="0.25" selected>0.25x</option>
+        <option value="0.35">0.35x</option>
+        <option value="0.5">0.50x</option>
+      </select>
+    </label>
+    <label>
+      Speed
+      <input id="duo-speed" type="range" min="0.25" max="3" step="0.05" value="1" />
+      <span id="duo-speed-value">1.00x</span>
+    </label>
+    <label>
+      <input id="duo-pause" type="checkbox" />
+      Pause
+    </label>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Sprite</h2>
+  {% include "partials/cat_duo_widget.html" %}
+</div>
+
+<script>
+  (function () {
+    function setup() {
+      var root = document.querySelector("[data-duo-cat]");
+      if (!root || !window.DuoCats) {
+        return;
+      }
+      var clip = document.getElementById("duo-clip");
+      var scale = document.getElementById("duo-scale");
+      var speed = document.getElementById("duo-speed");
+      var speedValue = document.getElementById("duo-speed-value");
+      var pause = document.getElementById("duo-pause");
+
+      function apply() {
+        root.dataset.clip = clip.value;
+        root.dataset.scale = scale.value;
+        root.dataset.speed = speed.value;
+        root.dataset.pause = pause.checked ? "true" : "false";
+        speedValue.textContent = Number.parseFloat(speed.value).toFixed(2) + "x";
+        window.DuoCats.refresh(root);
+      }
+
+      clip.addEventListener("change", apply);
+      scale.addEventListener("change", apply);
+      speed.addEventListener("input", apply);
+      pause.addEventListener("change", apply);
+      apply();
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", setup);
+    } else {
+      setup();
+    }
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,77 @@
+{
+  "imagePath": "/static/sprites/cats/cats_duo_atlas.png",
+  "frameW": 512,
+  "frameH": 256,
+  "cols": 3,
+  "rows": 2,
+  "frames": [
+    {
+      "id": 0,
+      "x": 0,
+      "y": 0,
+      "w": 512,
+      "h": 256
+    },
+    {
+      "id": 1,
+      "x": 512,
+      "y": 0,
+      "w": 512,
+      "h": 256
+    },
+    {
+      "id": 2,
+      "x": 1024,
+      "y": 0,
+      "w": 512,
+      "h": 256
+    },
+    {
+      "id": 3,
+      "x": 0,
+      "y": 256,
+      "w": 512,
+      "h": 256
+    },
+    {
+      "id": 4,
+      "x": 512,
+      "y": 256,
+      "w": 512,
+      "h": 256
+    },
+    {
+      "id": 5,
+      "x": 1024,
+      "y": 256,
+      "w": 512,
+      "h": 256
+    }
+  ],
+  "clips": {
+    "duo_groom": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 10,
+      "loop": true
+    },
+    "duo_play": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 12,
+      "loop": true
+    },
+    "duo_snuggle": {
+      "frames": [
+        4,
+        5
+      ],
+      "fps": 6,
+      "loop": true
+    }
+  }
+}
