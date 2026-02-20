@@ -7,6 +7,7 @@ from PIL import Image, ImageChops
 
 from _duo_cat_pack import (
     APP_STATIC_ROOT,
+    ASSET_VERSION,
     ATLAS_H,
     ATLAS_W,
     CLIP_CONFIG,
@@ -20,6 +21,12 @@ from _duo_cat_pack import (
     TOTAL_FRAMES,
     frame_rects,
 )
+
+VERSION_SUFFIX = f"?v={ASSET_VERSION}"
+
+
+def _versioned_image_path(path: str) -> str:
+    return f"{path}{VERSION_SUFFIX}"
 
 
 def _validate_frames(clip: str) -> list[Path]:
@@ -69,7 +76,7 @@ def _runtime_meta() -> dict:
             "fps": cfg["fps"],
             "loop": cfg["loop"],
             "frames": [0, 1, 2, 3, 4, 5],
-            "imagePath": f"/static/sprites/cats/duo_cats/{clip}.png",
+            "imagePath": _versioned_image_path(f"/static/sprites/cats/duo_cats/{clip}.png"),
         }
         if "return_to" in cfg:
             clip_entry["return_to"] = cfg["return_to"]
@@ -80,25 +87,25 @@ def _runtime_meta() -> dict:
         "fps": CLIP_CONFIG["snuggle_idle"]["fps"],
         "loop": True,
         "frames": [0, 1, 2, 3, 4, 5],
-        "imagePath": "/static/sprites/cats/duo_cats/snuggle_idle.png",
+        "imagePath": _versioned_image_path("/static/sprites/cats/duo_cats/snuggle_idle.png"),
     }
     clips["duo_groom"] = {
         "fps": CLIP_CONFIG["mutual_groom"]["fps"],
         "loop": False,
         "return_to": "snuggle_idle",
         "frames": [0, 1, 2, 3, 4, 5],
-        "imagePath": "/static/sprites/cats/duo_cats/mutual_groom.png",
+        "imagePath": _versioned_image_path("/static/sprites/cats/duo_cats/mutual_groom.png"),
     }
     clips["duo_play"] = {
         "fps": CLIP_CONFIG["play_pounce"]["fps"],
         "loop": False,
         "return_to": "snuggle_idle",
         "frames": [0, 1, 2, 3, 4, 5],
-        "imagePath": "/static/sprites/cats/duo_cats/play_pounce.png",
+        "imagePath": _versioned_image_path("/static/sprites/cats/duo_cats/play_pounce.png"),
     }
 
     return {
-        "imagePath": "/static/sprites/cats/duo_cats/snuggle_idle.png",
+        "imagePath": _versioned_image_path("/static/sprites/cats/duo_cats/snuggle_idle.png"),
         "frameW": FRAME_W,
         "frameH": FRAME_H,
         "cols": COLS,
@@ -128,4 +135,3 @@ def build() -> None:
 
 if __name__ == "__main__":
     build()
-

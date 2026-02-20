@@ -46,6 +46,7 @@ CLIP_CONFIG: dict[str, dict[str, Any]] = {
 SOURCE_ROOT = Path("assets_src/duo_cats")
 PUBLIC_ROOT = Path("public/static/sprites/cats")
 APP_STATIC_ROOT = Path("app/ui/static/sprites/cats")
+ASSET_VERSION = "cat-tree-38"
 
 
 def frame_rects() -> list[dict[str, int]]:
@@ -63,4 +64,3 @@ def frame_rects() -> list[dict[str, int]]:
             }
         )
     return rects
-

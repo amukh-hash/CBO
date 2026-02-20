@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from PIL import Image, ImageChops
+import hashlib
 
 from _duo_cat_pack import (
     APP_STATIC_ROOT,
@@ -59,6 +60,17 @@ def _validate_outputs(root: Path, clip: str) -> None:
     with Image.open(atlas) as atlas_img:
         if atlas_img.size != (ATLAS_W, ATLAS_H):
             raise ValueError(f"{atlas} must be {ATLAS_W}x{ATLAS_H}, got {atlas_img.size}")
+        # Catch accidental packer regressions where every atlas cell is duplicated.
+        cell_hashes: list[str] = []
+        for idx in range(TOTAL_FRAMES):
+            col = idx % 3
+            row = idx // 3
+            x0 = col * FRAME_W
+            y0 = row * FRAME_H
+            cell = atlas_img.crop((x0, y0, x0 + FRAME_W, y0 + FRAME_H)).tobytes()
+            cell_hashes.append(hashlib.sha256(cell).hexdigest())
+        if len(set(cell_hashes)) == 1:
+            raise ValueError(f"{atlas} appears static: all six cells are pixel-identical")
 
 
 def validate() -> None:
@@ -82,4 +94,3 @@ def validate() -> None:
 
 if __name__ == "__main__":
     validate()
-

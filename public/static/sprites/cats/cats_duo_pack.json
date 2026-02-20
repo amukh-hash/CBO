@@ -1,5 +1,5 @@
 {
-  "imagePath": "/static/sprites/cats/duo_cats/snuggle_idle.png",
+  "imagePath": "/static/sprites/cats/duo_cats/snuggle_idle.png?v=cat-tree-38",
   "frameW": 512,
   "frameH": 256,
   "cols": 3,
@@ -61,7 +61,7 @@
         4,
         5
       ],
-      "imagePath": "/static/sprites/cats/duo_cats/snuggle_idle.png"
+      "imagePath": "/static/sprites/cats/duo_cats/snuggle_idle.png?v=cat-tree-38"
     },
     "mutual_groom": {
       "fps": 9,
@@ -74,7 +74,7 @@
         4,
         5
       ],
-      "imagePath": "/static/sprites/cats/duo_cats/mutual_groom.png",
+      "imagePath": "/static/sprites/cats/duo_cats/mutual_groom.png?v=cat-tree-38",
       "return_to": "snuggle_idle"
     },
     "nose_boop": {
@@ -88,7 +88,7 @@
         4,
         5
       ],
-      "imagePath": "/static/sprites/cats/duo_cats/nose_boop.png",
+      "imagePath": "/static/sprites/cats/duo_cats/nose_boop.png?v=cat-tree-38",
       "return_to": "snuggle_idle"
     },
     "snuggle_curl": {
@@ -102,7 +102,7 @@
         4,
         5
       ],
-      "imagePath": "/static/sprites/cats/duo_cats/snuggle_curl.png",
+      "imagePath": "/static/sprites/cats/duo_cats/snuggle_curl.png?v=cat-tree-38",
       "return_to": "snuggle_idle"
     },
     "play_pounce": {
@@ -116,7 +116,7 @@
         4,
         5
       ],
-      "imagePath": "/static/sprites/cats/duo_cats/play_pounce.png",
+      "imagePath": "/static/sprites/cats/duo_cats/play_pounce.png?v=cat-tree-38",
       "return_to": "snuggle_idle"
     },
     "paw_batting": {
@@ -130,7 +130,7 @@
         4,
         5
       ],
-      "imagePath": "/static/sprites/cats/duo_cats/paw_batting.png",
+      "imagePath": "/static/sprites/cats/duo_cats/paw_batting.png?v=cat-tree-38",
       "return_to": "snuggle_idle"
     },
     "chase_loop": {
@@ -144,7 +144,7 @@
         4,
         5
       ],
-      "imagePath": "/static/sprites/cats/duo_cats/chase_loop.png"
+      "imagePath": "/static/sprites/cats/duo_cats/chase_loop.png?v=cat-tree-38"
     },
     "bunny_kick": {
       "fps": 12,
@@ -157,7 +157,7 @@
         4,
         5
       ],
-      "imagePath": "/static/sprites/cats/duo_cats/bunny_kick.png",
+      "imagePath": "/static/sprites/cats/duo_cats/bunny_kick.png?v=cat-tree-38",
       "return_to": "snuggle_idle"
     },
     "standing_swat": {
@@ -171,7 +171,7 @@
         4,
         5
       ],
-      "imagePath": "/static/sprites/cats/duo_cats/standing_swat.png",
+      "imagePath": "/static/sprites/cats/duo_cats/standing_swat.png?v=cat-tree-38",
       "return_to": "snuggle_idle"
     },
     "standoff": {
@@ -185,7 +185,7 @@
         4,
         5
       ],
-      "imagePath": "/static/sprites/cats/duo_cats/standoff.png"
+      "imagePath": "/static/sprites/cats/duo_cats/standoff.png?v=cat-tree-38"
     },
     "explosive_clash": {
       "fps": 14,
@@ -198,7 +198,7 @@
         4,
         5
       ],
-      "imagePath": "/static/sprites/cats/duo_cats/explosive_clash.png",
+      "imagePath": "/static/sprites/cats/duo_cats/explosive_clash.png?v=cat-tree-38",
       "return_to": "snuggle_idle"
     },
     "ear_cleaning": {
@@ -212,7 +212,7 @@
         4,
         5
       ],
-      "imagePath": "/static/sprites/cats/duo_cats/ear_cleaning.png",
+      "imagePath": "/static/sprites/cats/duo_cats/ear_cleaning.png?v=cat-tree-38",
       "return_to": "snuggle_idle"
     },
     "face_wash_assist": {
@@ -226,7 +226,7 @@
         4,
         5
       ],
-      "imagePath": "/static/sprites/cats/duo_cats/face_wash_assist.png",
+      "imagePath": "/static/sprites/cats/duo_cats/face_wash_assist.png?v=cat-tree-38",
       "return_to": "snuggle_idle"
     },
     "duo_snuggle": {
@@ -240,7 +240,7 @@
         4,
         5
       ],
-      "imagePath": "/static/sprites/cats/duo_cats/snuggle_idle.png"
+      "imagePath": "/static/sprites/cats/duo_cats/snuggle_idle.png?v=cat-tree-38"
     },
     "duo_groom": {
       "fps": 9,
@@ -254,7 +254,7 @@
         4,
         5
       ],
-      "imagePath": "/static/sprites/cats/duo_cats/mutual_groom.png"
+      "imagePath": "/static/sprites/cats/duo_cats/mutual_groom.png?v=cat-tree-38"
     },
     "duo_play": {
       "fps": 12,
@@ -268,7 +268,7 @@
         4,
         5
       ],
-      "imagePath": "/static/sprites/cats/duo_cats/play_pounce.png"
+      "imagePath": "/static/sprites/cats/duo_cats/play_pounce.png?v=cat-tree-38"
     }
   }
 }
