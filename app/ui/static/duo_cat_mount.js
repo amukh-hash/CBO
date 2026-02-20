@@ -175,7 +175,24 @@
       [clip, clipName, frameCount, frameDurationMs, frameIds, onDone, paused, playNonce]
     );
 
-    var rect = frameId === null ? null : frameById[frameId] || null;
+    var rect = null;
+    if (frameId !== null) {
+      rect = frameById[frameId] || null;
+      // Fallback for numeric frame IDs if metadata frame rect lookup is missing.
+      if (!rect && meta && Number.isFinite(meta.frameW) && Number.isFinite(meta.frameH) && Number.isFinite(meta.cols)) {
+        var idx = typeof frameId === "number" ? frameId : parseInt(frameId, 10);
+        if (Number.isFinite(idx)) {
+          var col = idx % meta.cols;
+          var row = Math.floor(idx / meta.cols);
+          rect = {
+            x: col * meta.frameW,
+            y: row * meta.frameH,
+            w: meta.frameW,
+            h: meta.frameH,
+          };
+        }
+      }
+    }
     return {
       frameId: frameId,
       rect: rect,
