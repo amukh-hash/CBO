@@ -41,7 +41,24 @@
     return metaPromise;
   }
 
-  function useSpriteAnimator(meta, clipName, paused, speed) {
+  function resolveDefaultClip(meta) {
+    if (!meta || !meta.clips) {
+      return "";
+    }
+    if (meta.default_clip && meta.clips[meta.default_clip]) {
+      return meta.default_clip;
+    }
+    if (meta.clips.duo_snuggle) {
+      return "duo_snuggle";
+    }
+    if (meta.clips.snuggle_idle) {
+      return "snuggle_idle";
+    }
+    var keys = Object.keys(meta.clips);
+    return keys.length > 0 ? keys[0] : "";
+  }
+
+  function useSpriteAnimator(meta, clipName, paused, speed, onDone, playNonce) {
     var clip = meta && meta.clips ? meta.clips[clipName] : null;
     var frameIds = clip && Array.isArray(clip.frames) ? clip.frames : [];
     var frameCount = frameIds.length;
@@ -62,6 +79,8 @@
     var lastTsRef = React.useRef(null);
     var accMsRef = React.useRef(0);
     var frameIdxRef = React.useRef(0);
+    var doneRef = React.useRef(false);
+    var doneNonceRef = React.useRef(null);
 
     var firstFrameId = frameCount > 0 ? frameIds[0] : null;
     var _a = React.useState(firstFrameId);
@@ -80,9 +99,11 @@
         frameIdxRef.current = 0;
         lastTsRef.current = null;
         accMsRef.current = 0;
+        doneRef.current = false;
+        doneNonceRef.current = playNonce;
         setFrameId(firstFrameId);
       },
-      [firstFrameId, clipName, meta]
+      [firstFrameId, clipName, meta, playNonce]
     );
 
     React.useEffect(
@@ -96,6 +117,10 @@
         }
 
         if (frameCount <= 1) {
+          if (!clip.loop && !doneRef.current && typeof onDone === "function" && doneNonceRef.current === playNonce) {
+            doneRef.current = true;
+            onDone(clipName);
+          }
           return undefined;
         }
 
@@ -123,6 +148,15 @@
             if (nextIdx !== prevIdx) {
               setFrameId(frameIds[nextIdx]);
             }
+
+            if (!clip.loop && nextIdx >= frameCount - 1) {
+              if (!doneRef.current && typeof onDone === "function" && doneNonceRef.current === playNonce) {
+                doneRef.current = true;
+                onDone(clipName);
+              }
+              rafRef.current = null;
+              return;
+            }
           }
 
           rafRef.current = requestAnimationFrame(tick);
@@ -138,7 +172,7 @@
           accMsRef.current = 0;
         };
       },
-      [clip, frameCount, frameDurationMs, frameIds, paused]
+      [clip, clipName, frameCount, frameDurationMs, frameIds, onDone, paused, playNonce]
     );
 
     var rect = frameId === null ? null : frameById[frameId] || null;
@@ -148,14 +182,154 @@
     };
   }
 
+  function useDuoCatClipController(meta) {
+    var defaultClip = React.useMemo(
+      function () {
+        return resolveDefaultClip(meta);
+      },
+      [meta]
+    );
+
+    var _a = React.useState(defaultClip);
+    var clipName = _a[0];
+    var setClipName = _a[1];
+
+    var _b = React.useState(0);
+    var playNonce = _b[0];
+    var setPlayNonce = _b[1];
+
+    var pendingRef = React.useRef(Promise.resolve());
+    var inQueueRef = React.useRef(false);
+    var resolveRef = React.useRef(null);
+
+    React.useEffect(
+      function () {
+        if (!meta || !meta.clips || !meta.clips[clipName]) {
+          setClipName(defaultClip);
+          setPlayNonce(function (prev) {
+            return prev + 1;
+          });
+        }
+      },
+      [clipName, defaultClip, meta]
+    );
+
+    var setIdle = React.useCallback(function () {
+      if (!defaultClip) {
+        return;
+      }
+      setClipName(defaultClip);
+      setPlayNonce(function (prev) {
+        return prev + 1;
+      });
+    }, [defaultClip]);
+
+    var playOnce = React.useCallback(
+      function (name) {
+        return new Promise(function (resolve) {
+          if (!meta || !meta.clips || !meta.clips[name]) {
+            if (resolveRef.current) {
+              resolveRef.current();
+              resolveRef.current = null;
+            }
+            resolve();
+            return;
+          }
+
+          if (resolveRef.current) {
+            resolveRef.current();
+          }
+          resolveRef.current = function () {
+            resolveRef.current = null;
+            resolve();
+          };
+
+          setClipName(name);
+          setPlayNonce(function (prev) {
+            return prev + 1;
+          });
+
+          var clip = meta.clips[name];
+          if (!clip || clip.loop || !Array.isArray(clip.frames) || clip.frames.length <= 1) {
+            if (resolveRef.current) {
+              resolveRef.current();
+            }
+          }
+        });
+      },
+      [meta]
+    );
+
+    var queue = React.useCallback(
+      function (names) {
+        var safeNames = Array.isArray(names) ? names.slice() : [];
+        pendingRef.current = pendingRef.current.then(function () {
+          inQueueRef.current = true;
+          var chain = Promise.resolve();
+          safeNames.forEach(function (name) {
+            chain = chain.then(function () {
+              return playOnce(name);
+            });
+          });
+          return chain
+            .catch(function () {
+              return undefined;
+            })
+            .then(function () {
+              inQueueRef.current = false;
+              setIdle();
+            });
+        });
+        return pendingRef.current;
+      },
+      [playOnce, setIdle]
+    );
+
+    var onDone = React.useCallback(
+      function (doneClipName) {
+        if (resolveRef.current) {
+          resolveRef.current();
+        }
+        if (inQueueRef.current) {
+          return;
+        }
+        var doneClip = meta && meta.clips ? meta.clips[doneClipName] : null;
+        var returnTo = doneClip && doneClip.return_to && meta.clips[doneClip.return_to] ? doneClip.return_to : defaultClip;
+        if (!returnTo) {
+          return;
+        }
+        setClipName(returnTo);
+        setPlayNonce(function (prev) {
+          return prev + 1;
+        });
+      },
+      [defaultClip, meta]
+    );
+
+    return {
+      clipName: clipName,
+      playNonce: playNonce,
+      onDone: onDone,
+      setIdle: setIdle,
+      playOnce: playOnce,
+      queue: queue,
+    };
+  }
+
   function DuoCatSprite(props) {
     var _a = React.useState(props.meta || metaCache);
     var meta = _a[0];
     var setMeta = _a[1];
 
-    var _b = React.useState(false);
-    var isHovered = _b[0];
-    var setIsHovered = _b[1];
+    var hoverPlayedRef = React.useRef(false);
+    var initialClipAppliedRef = React.useRef(false);
+
+    React.useEffect(
+      function () {
+        initialClipAppliedRef.current = false;
+      },
+      [meta]
+    );
 
     React.useEffect(
       function () {
@@ -167,7 +341,7 @@
           return undefined;
         }
 
-        fetchMeta(props.metadataUrl || "/static/sprites/cats/cats_duo_atlas.json")
+        fetchMeta(props.metadataUrl || "/static/sprites/cats/cats_duo_pack.json")
           .then(function (loaded) {
             if (!cancelled) {
               setMeta(loaded);
@@ -186,16 +360,54 @@
       [props.meta, props.metadataUrl]
     );
 
-    var baseClip = props.clip || "duo_snuggle";
-    var hoverClip = props.hoverClip || "duo_groom";
+    var ctrl = useDuoCatClipController(meta);
+    var baseClip = props.clip || "";
+    var baseClipExists = !!(meta && meta.clips && baseClip && meta.clips[baseClip]);
+    var hoverClip = props.hoverClip || "nose_boop";
+    var hoverClipExists = !!(meta && meta.clips && hoverClip && meta.clips[hoverClip]);
     var switchClipOnHover = props.switchClipOnHover !== false;
-    var activeClipName =
-      isHovered && switchClipOnHover && meta && meta.clips && meta.clips[hoverClip] ? hoverClip : baseClip;
+
+    React.useEffect(
+      function () {
+        if (!meta || !meta.clips) {
+          return;
+        }
+        if (initialClipAppliedRef.current) {
+          return;
+        }
+        initialClipAppliedRef.current = true;
+        if (baseClipExists) {
+          var baseCfg = meta.clips[baseClip];
+          ctrl.playOnce(baseClip).then(function () {
+            if (!baseCfg || !baseCfg.loop) {
+              ctrl.setIdle();
+            }
+          });
+          return;
+        }
+        ctrl.setIdle();
+      },
+      [baseClip, baseClipExists, ctrl.playOnce, ctrl.setIdle, meta]
+    );
+
+    React.useEffect(
+      function () {
+        if (!meta || !meta.clips || typeof props.onController !== "function") {
+          return;
+        }
+        props.onController({
+          playOnce: ctrl.playOnce,
+          queue: ctrl.queue,
+          setIdle: ctrl.setIdle,
+        });
+      },
+      [ctrl.playOnce, ctrl.queue, ctrl.setIdle, meta, props.onController]
+    );
 
     var paused = props.paused === true;
     var speed = Number.isFinite(props.speed) && props.speed > 0 ? props.speed : 1;
 
-    var anim = useSpriteAnimator(meta, activeClipName, paused, speed);
+    var anim = useSpriteAnimator(meta, ctrl.clipName, paused, speed, ctrl.onDone, ctrl.playNonce);
     var debugFrameCounterRef = React.useRef(0);
 
     React.useEffect(
@@ -207,17 +419,17 @@
         if (debugFrameCounterRef.current % 30 === 0) {
           console.log(
             "[DuoCats]",
-            "clip=" + String(activeClipName),
+            "clip=" + String(ctrl.clipName),
             "frameId=" + String(anim.frameId),
             "x=" + String(anim.rect.x),
             "y=" + String(anim.rect.y)
           );
         }
       },
-      [activeClipName, anim.frameId, anim.rect]
+      [anim.frameId, anim.rect, ctrl.clipName]
     );
 
-    if (!meta || !anim.rect) {
+    if (!meta || !anim.rect || !meta.clips || !meta.clips[ctrl.clipName]) {
       return null;
     }
 
@@ -228,7 +440,9 @@
     var rows = Number.isFinite(meta.rows) ? meta.rows : 0;
     var atlasW = frameW * cols;
     var atlasH = frameH * rows;
-    if (!meta.imagePath || frameW <= 0 || frameH <= 0 || cols <= 0 || rows <= 0 || atlasW <= 0 || atlasH <= 0) {
+    var activeClip = meta.clips[ctrl.clipName];
+    var clipImagePath = activeClip && activeClip.imagePath ? activeClip.imagePath : meta.imagePath;
+    if (!clipImagePath || frameW <= 0 || frameH <= 0 || cols <= 0 || rows <= 0 || atlasW <= 0 || atlasH <= 0) {
       if (!invalidMetaWarned) {
         invalidMetaWarned = true;
         console.warn("[DuoCats] Invalid atlas metadata; sprite will not render.");
@@ -253,7 +467,7 @@
     var frameStyle = {
       width: "100%",
       height: "100%",
-      backgroundImage: "url(" + String(meta.imagePath) + ")",
+      backgroundImage: "url(" + String(clipImagePath) + ")",
       backgroundRepeat: "no-repeat",
       backgroundSize: String(scaledAtlasW) + "px " + String(scaledAtlasH) + "px",
       // Atlas rects are sheet-space pixel offsets; negative x/y selects that frame cell.
@@ -264,6 +478,20 @@
 
     var className = props.className || "duo-cat-sprite";
     var spriteClassName = props.spriteClassName || "duo-cat-sprite-frame";
+    var handleHoverStart = function () {
+      if (!switchClipOnHover || !hoverClipExists) {
+        return;
+      }
+      if (hoverPlayedRef.current) {
+        return;
+      }
+      hoverPlayedRef.current = true;
+      ctrl.playOnce(hoverClip);
+    };
+    var handleHoverEnd = function () {
+      hoverPlayedRef.current = false;
+      ctrl.setIdle();
+    };
 
     if (motion) {
       return h(
@@ -275,12 +503,8 @@
           animate: { opacity: 1 },
           whileHover: { scale: 1.02 },
           transition: { duration: 0.2, ease: "easeOut" },
-          onHoverStart: function () {
-            setIsHovered(true);
-          },
-          onHoverEnd: function () {
-            setIsHovered(false);
-          },
+          onHoverStart: handleHoverStart,
+          onHoverEnd: handleHoverEnd,
         },
         h("div", { className: spriteClassName, style: frameStyle })
       );
@@ -291,12 +515,8 @@
       {
         className: className,
         style: wrapperStyle,
-        onMouseEnter: function () {
-          setIsHovered(true);
-        },
-        onMouseLeave: function () {
-          setIsHovered(false);
-        },
+        onMouseEnter: handleHoverStart,
+        onMouseLeave: handleHoverEnd,
       },
       h("div", { className: spriteClassName, style: frameStyle })
     );
@@ -304,13 +524,13 @@
 
   function readProps(node) {
     return {
-      clip: node.dataset.clip || "duo_snuggle",
-      hoverClip: node.dataset.hoverClip || "duo_groom",
+      clip: node.dataset.clip || "snuggle_idle",
+      hoverClip: node.dataset.hoverClip || "nose_boop",
       switchClipOnHover: node.dataset.hoverSwitch !== "false",
       scale: Number.parseFloat(node.dataset.scale || "0.25") || 0.25,
       paused: node.dataset.pause === "true",
       speed: Number.parseFloat(node.dataset.speed || "1") || 1,
-      metadataUrl: node.dataset.metadataUrl || "/static/sprites/cats/cats_duo_atlas.json",
+      metadataUrl: node.dataset.metadataUrl || "/static/sprites/cats/cats_duo_pack.json",
     };
   }
 

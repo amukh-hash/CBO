@@ -1,0 +1,15 @@
+.PHONY: duo-cats-sources duo-cats-build duo-cats-gifs duo-cats-validate duo-cats-all
+
+duo-cats-sources:
+	python scripts/generate_duo_cat_sources.py
+
+duo-cats-build:
+	python scripts/build_duo_cat_atlases.py
+
+duo-cats-gifs:
+	python scripts/export_duo_cat_gifs.py
+
+duo-cats-validate:
+	python scripts/validate_duo_cat_pack.py
+
+duo-cats-all: duo-cats-sources duo-cats-build duo-cats-gifs duo-cats-validate
