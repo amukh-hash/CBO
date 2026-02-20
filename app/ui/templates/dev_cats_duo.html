@@ -15,12 +15,8 @@
     </label>
     <label>
       Scale
-      <select id="duo-scale">
-        <option value="0.2">0.20x</option>
-        <option value="0.25" selected>0.25x</option>
-        <option value="0.35">0.35x</option>
-        <option value="0.5">0.50x</option>
-      </select>
+      <input id="duo-scale" type="range" min="0.1" max="0.8" step="0.01" value="0.25" />
+      <span id="duo-scale-value">0.25x</span>
     </label>
     <label>
       Speed
@@ -50,6 +46,7 @@
       var scale = document.getElementById("duo-scale");
       var speed = document.getElementById("duo-speed");
       var speedValue = document.getElementById("duo-speed-value");
+      var scaleValue = document.getElementById("duo-scale-value");
       var pause = document.getElementById("duo-pause");
 
       function apply() {
@@ -58,11 +55,12 @@
         root.dataset.speed = speed.value;
         root.dataset.pause = pause.checked ? "true" : "false";
         speedValue.textContent = Number.parseFloat(speed.value).toFixed(2) + "x";
+        scaleValue.textContent = Number.parseFloat(scale.value).toFixed(2) + "x";
         window.DuoCats.refresh(root);
       }
 
       clip.addEventListener("change", apply);
-      scale.addEventListener("change", apply);
+      scale.addEventListener("input", apply);
       speed.addEventListener("input", apply);
       pause.addEventListener("change", apply);
       apply();

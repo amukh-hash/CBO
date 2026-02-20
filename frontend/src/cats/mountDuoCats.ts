@@ -8,9 +8,12 @@ const mounted = new Map<HTMLElement, Root>();
 function readProps(node: HTMLElement) {
   return {
     clip: node.dataset.clip ?? "duo_snuggle",
+    hoverClip: node.dataset.hoverClip ?? "duo_groom",
+    switchClipOnHover: node.dataset.hoverSwitch !== "false",
     scale: Number.parseFloat(node.dataset.scale ?? "0.25") || 0.25,
-    pause: node.dataset.pause === "true",
-    speedMultiplier: Number.parseFloat(node.dataset.speed ?? "1") || 1,
+    paused: node.dataset.pause === "true",
+    speed: Number.parseFloat(node.dataset.speed ?? "1") || 1,
+    metadataUrl: node.dataset.metadataUrl ?? "/static/sprites/cats/cats_duo_atlas.json",
   };
 }
 
@@ -29,7 +32,11 @@ function unmountOne(node: HTMLElement): void {
 }
 
 function scan(scope: ParentNode = document): HTMLElement[] {
-  return Array.from(scope.querySelectorAll<HTMLElement>("[data-duo-cat]"));
+  const nodes = Array.from(scope.querySelectorAll<HTMLElement>("[data-duo-cat]"));
+  if (scope instanceof HTMLElement && scope.matches("[data-duo-cat]")) {
+    nodes.unshift(scope);
+  }
+  return nodes;
 }
 
 export function mountDuoCats(scope?: ParentNode): void {

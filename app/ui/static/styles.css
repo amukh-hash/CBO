@@ -351,14 +351,16 @@ dialog {
   z-index: 3;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  margin-top: 20px;
+  gap: 18px;
+  margin-top: 18px;
+  padding: 4px 8px 0;
 }
 
 .tree-shelf {
   position: relative;
-  min-height: 64px;
+  min-height: 72px;
   animation: float-idle 5.4s steps(2, end) infinite;
+  width: 100%;
 }
 
 .tree-shelf:nth-child(odd) {
@@ -381,11 +383,29 @@ dialog {
 }
 
 .tree-shelf.side-left {
-  padding-right: calc(50% + 24px);
+  align-self: flex-start;
+  width: 88%;
+  margin-left: 4px;
+  padding-right: 40%;
+  transform: rotate(-0.8deg);
 }
 
 .tree-shelf.side-right {
-  padding-left: calc(50% + 24px);
+  align-self: flex-end;
+  width: 88%;
+  margin-right: 4px;
+  padding-left: 40%;
+  transform: rotate(0.9deg);
+}
+
+.tree-shelf.shelf-1,
+.tree-shelf.shelf-4 {
+  transform: rotate(1.4deg);
+}
+
+.tree-shelf.shelf-2,
+.tree-shelf.shelf-5 {
+  transform: rotate(-1.3deg);
 }
 
 .tree-shelf.side-left::before {
@@ -400,8 +420,8 @@ dialog {
   content: "";
   position: absolute;
   top: 50%;
-  width: 11px;
-  height: 42px;
+  width: 13px;
+  height: 46px;
   border-radius: 0;
   transform: translateY(-50%);
   background: repeating-linear-gradient(180deg, #b089cc 0 6px, #6d4986 6px 10px);
@@ -419,7 +439,9 @@ dialog {
 
 .shelf-board {
   position: relative;
-  padding: 9px 8px;
+  width: fit-content;
+  min-width: 100%;
+  padding: 10px 10px 16px;
   border-radius: 0;
   background:
     linear-gradient(180deg, #c48ee5, #9d68c2 56%, #75489b),
@@ -449,9 +471,9 @@ dialog {
 .shelf-board::after {
   content: "";
   position: absolute;
-  bottom: -12px;
-  width: 20px;
-  height: 14px;
+  bottom: -14px;
+  width: 24px;
+  height: 16px;
   background: linear-gradient(180deg, #7d50a6, #5d3a7f);
   clip-path: polygon(0 0, 100% 0, 52% 100%);
   box-shadow: 0 2px 3px rgba(0, 0, 0, 0.2);
@@ -487,18 +509,25 @@ dialog {
 
 .tree-tab {
   display: block;
-  width: 100%;
-  text-align: left;
+  width: auto;
+  min-width: fit-content;
+  max-width: 100%;
+  text-align: center;
   text-decoration: none;
   border: 3px solid var(--border);
   border-radius: 0;
-  padding: 10px 12px;
+  padding: 8px 16px;
   background: linear-gradient(180deg, #b583d5, #7b549b);
   color: #fff1f5;
   font-weight: 700;
   text-transform: uppercase;
   font-size: 0.72rem;
   letter-spacing: 0.07em;
+  line-height: 1.35;
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
+  position: relative;
   box-shadow: 0 0 0 1px #ff71ce, 0 4px 8px rgba(23, 8, 15, 0.25);
   transform-origin: left center;
   transition: transform 180ms var(--spring), background 180ms var(--spring), box-shadow 180ms var(--spring), filter 180ms var(--spring);
@@ -538,6 +567,48 @@ dialog {
 
 .tree-tab.active-click {
   animation: tab-pop 260ms var(--spring);
+}
+
+.active-shelf {
+  position: relative;
+  overflow: visible;
+  clip-path: none;
+  -webkit-clip-path: none;
+}
+
+.cat-snuggle-cluster {
+  position: absolute;
+  bottom: calc(100% - 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: block;
+  pointer-events: auto;
+  z-index: 10;
+}
+
+.duo-cat-badge {
+  min-width: auto;
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.cat {
+  display: block;
+  image-rendering: pixelated;
+}
+
+.gray-cat {
+  width: 32px;
+  z-index: 2;
+  margin-right: -14px;
+}
+
+.calico-cat {
+  width: 48px;
+  z-index: 1;
 }
 
 .snuggle-container {
@@ -1922,4 +1993,11 @@ dialog::backdrop {
 .duo-cat-sprite {
   display: block;
   image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.duo-cat-sprite-frame {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background-repeat: no-repeat;
 }

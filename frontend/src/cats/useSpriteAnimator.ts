@@ -1,40 +1,54 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { Clip } from "./atlasTypes";
+import type { AtlasMeta, FrameRect } from "./atlasTypes";
 
 type Options = {
-  pause?: boolean;
-  speedMultiplier?: number;
+  paused?: boolean;
+  speed?: number;
 };
 
 type AnimatorState = {
-  frameIndex: number;
-  frameId: number;
+  frameId: number | null;
+  rect: FrameRect | null;
 };
 
-export function useSpriteAnimator(clip: Clip | undefined, options: Options = {}): AnimatorState {
-  const { pause = false, speedMultiplier = 1 } = options;
-  const [frameIndex, setFrameIndex] = useState(0);
+export function useSpriteAnimator(
+  meta: AtlasMeta | null | undefined,
+  clipName: string,
+  options: Options = {}
+): AnimatorState {
+  const { paused = false, speed = 1 } = options;
+  const clip = meta?.clips[clipName];
+  const frameCount = clip?.frames.length ?? 0;
+  const frameById = useMemo(() => {
+    if (!meta) return new Map<number, FrameRect>();
+    return new Map(meta.frames.map((frame) => [frame.id, frame]));
+  }, [meta]);
 
   const rafRef = useRef<number | null>(null);
   const lastTsRef = useRef<number | null>(null);
-  const accumulatorRef = useRef(0);
+  const accMsRef = useRef(0);
+  const frameIdxRef = useRef(0);
 
-  const stepMs = useMemo(() => {
-    if (!clip || clip.fps <= 0 || speedMultiplier <= 0) {
+  const firstFrameId = frameCount > 0 ? (clip?.frames[0] ?? null) : null;
+  const [frameId, setFrameId] = useState<number | null>(firstFrameId);
+
+  const frameDurationMs = useMemo(() => {
+    if (!clip || clip.fps <= 0 || speed <= 0) {
       return Number.POSITIVE_INFINITY;
     }
-    return 1000 / (clip.fps * speedMultiplier);
-  }, [clip, speedMultiplier]);
+    return 1000 / (clip.fps * speed);
+  }, [clip, speed]);
 
   useEffect(() => {
-    setFrameIndex(0);
-    accumulatorRef.current = 0;
+    frameIdxRef.current = 0;
     lastTsRef.current = null;
-  }, [clip]);
+    accMsRef.current = 0;
+    setFrameId(firstFrameId);
+  }, [firstFrameId, clipName, meta]);
 
   useEffect(() => {
-    if (!clip || pause || !Number.isFinite(stepMs)) {
+    if (!clip || frameCount === 0 || paused || !Number.isFinite(frameDurationMs)) {
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
@@ -42,7 +56,6 @@ export function useSpriteAnimator(clip: Clip | undefined, options: Options = {})
       return undefined;
     }
 
-    const frameCount = clip.frames.length;
     if (frameCount <= 1) {
       return undefined;
     }
@@ -51,25 +64,24 @@ export function useSpriteAnimator(clip: Clip | undefined, options: Options = {})
       if (lastTsRef.current === null) {
         lastTsRef.current = ts;
       }
-
       const dt = ts - lastTsRef.current;
       lastTsRef.current = ts;
-      accumulatorRef.current += dt;
+      accMsRef.current += Math.max(0, dt);
 
-      let steps = 0;
-      while (accumulatorRef.current >= stepMs) {
-        accumulatorRef.current -= stepMs;
-        steps += 1;
-      }
-
+      const steps = Math.floor(accMsRef.current / frameDurationMs);
       if (steps > 0) {
-        setFrameIndex((prev) => {
-          const raw = prev + steps;
-          if (clip.loop) {
-            return raw % frameCount;
-          }
-          return Math.min(raw, frameCount - 1);
-        });
+        accMsRef.current -= steps * frameDurationMs;
+        const prevIdx = frameIdxRef.current;
+        let nextIdx = prevIdx;
+        if (clip.loop) {
+          nextIdx = (prevIdx + steps) % frameCount;
+        } else {
+          nextIdx = Math.min(prevIdx + steps, frameCount - 1);
+        }
+        frameIdxRef.current = nextIdx;
+        if (nextIdx !== prevIdx) {
+          setFrameId(clip.frames[nextIdx] ?? null);
+        }
       }
 
       rafRef.current = requestAnimationFrame(tick);
@@ -82,10 +94,10 @@ export function useSpriteAnimator(clip: Clip | undefined, options: Options = {})
       }
       rafRef.current = null;
       lastTsRef.current = null;
-      accumulatorRef.current = 0;
+      accMsRef.current = 0;
     };
-  }, [clip, pause, stepMs]);
+  }, [clip, frameCount, frameDurationMs, paused]);
 
-  const frameId = clip?.frames[Math.min(frameIndex, Math.max(clip?.frames.length ?? 1, 1) - 1)] ?? 0;
-  return { frameIndex, frameId };
+  const rect = frameId === null ? null : (frameById.get(frameId) ?? null);
+  return { frameId, rect };
 }
