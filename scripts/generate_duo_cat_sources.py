@@ -6,16 +6,58 @@ from PIL import Image, ImageDraw, ImageOps
 
 from _duo_cat_pack import FRAME_H, FRAME_W, CLIP_ORDER, SOURCE_ROOT
 
-BASE_ATLAS = Path("app/ui/static/sprites/cats/cats_duo_atlas.png")
+BASE_BOARD = Path("app/ui/static/catsCBO.png")
+FALLBACK_ATLAS = Path("app/ui/static/sprites/cats/cats_duo_atlas.png")
 
 
-def _extract_cells(atlas: Image.Image) -> list[Image.Image]:
+def _crop_pose(board: Image.Image, cx: int, cy: int, w: int = 310, h: int = 190) -> Image.Image:
+    x0 = max(0, cx - (w // 2))
+    y0 = max(0, cy - (h // 2))
+    x1 = min(board.width, x0 + w)
+    y1 = min(board.height, y0 + h)
+    return board.crop((x0, y0, x1, y1))
+
+
+def _extract_cells_from_board(board: Image.Image) -> dict[str, Image.Image]:
+    # Centers tuned for app/ui/static/catsCBO.png (1024x1536).
+    return {
+        "gr0": _crop_pose(board, 176, 560),   # Manual grooming
+        "gr1": _crop_pose(board, 512, 560),   # Nose boop / greeting
+        "pl0": _crop_pose(board, 176, 740),   # Play pounce
+        "pl1": _crop_pose(board, 512, 740),   # Paw batting
+        "sn": _crop_pose(board, 512, 1470),   # Snuggle idle (bottom center)
+        "sn_b": _crop_pose(board, 846, 560),  # Snuggle / curl together
+        "chase": _crop_pose(board, 846, 1088),
+        "kick": _crop_pose(board, 176, 914),
+        "swat": _crop_pose(board, 512, 914),
+        "standoff": _crop_pose(board, 846, 914),
+        "clash": _crop_pose(board, 176, 1262),
+        "ear": _crop_pose(board, 512, 1262),
+        "face": _crop_pose(board, 846, 1262),
+    }
+
+
+def _extract_cells_from_fallback_atlas(atlas: Image.Image) -> dict[str, Image.Image]:
     cells: list[Image.Image] = []
     for idx in range(6):
         x = (idx % 3) * FRAME_W
         y = (idx // 3) * FRAME_H
         cells.append(atlas.crop((x, y, x + FRAME_W, y + FRAME_H)))
-    return cells
+    return {
+        "gr0": cells[0],
+        "gr1": cells[1],
+        "pl0": cells[2],
+        "pl1": cells[3],
+        "sn": cells[4],
+        "sn_b": cells[5],
+        "chase": cells[3],
+        "kick": cells[2],
+        "swat": cells[1],
+        "standoff": cells[0],
+        "clash": cells[2],
+        "ear": cells[1],
+        "face": cells[0],
+    }
 
 
 def _compose(
@@ -73,132 +115,138 @@ def _recipes(cells: dict[str, Image.Image]) -> dict[str, list[Image.Image]]:
     gr1 = cells["gr1"]
     pl0 = cells["pl0"]
     pl1 = cells["pl1"]
+    chase = cells["chase"]
+    kick = cells["kick"]
+    swat = cells["swat"]
+    standoff = cells["standoff"]
+    clash = cells["clash"]
+    ear = cells["ear"]
+    face = cells["face"]
+    sn0 = _compose(sn)
+    gr00 = _compose(gr0)
+    gr10 = _compose(gr1)
 
     # Frame 0 and frame 5 are identical snuggle for every clip.
     return {
         "snuggle_idle": [
-            sn,
+            sn0,
             _compose(sn, dy=1, sy=1.01),
             _compose(sn_b, dy=0, sy=0.99),
             _compose(sn_b, dy=-1, sy=0.99),
             _compose(sn, dy=0, sy=1.01),
-            sn,
+            sn0,
         ],
         "mutual_groom": [
-            sn,
+            sn0,
             _compose(gr0, dy=-1),
             _compose(gr1, dy=0),
             _compose(gr0, dy=-1),
             _compose(gr1, dy=0),
-            sn,
+            sn0,
         ],
         "nose_boop": [
-            sn,
+            sn0,
             _compose(gr0, dx=1, motion="boop"),
             _compose(gr1, dx=3, motion="boop"),
             _compose(gr0, dx=2, motion="boop"),
-            _compose(gr1, dx=0),
-            sn,
+            gr10,
+            sn0,
         ],
         "snuggle_curl": [
-            sn,
+            sn0,
             _compose(sn_b, dy=2, sy=0.98),
             _compose(sn_b, dy=3, sy=0.97),
             _compose(sn_b, dy=2, sy=0.98),
             _compose(sn, dy=1, sy=1.0),
-            sn,
+            sn0,
         ],
         "play_pounce": [
-            sn,
+            sn0,
             _compose(pl0, dx=-5, motion="pounce"),
             _compose(pl1, dx=5, motion="pounce"),
             _compose(pl0, dx=3),
             _compose(pl1, dx=-2),
-            sn,
+            sn0,
         ],
         "paw_batting": [
-            sn,
+            sn0,
             _compose(gr0, dx=-3, motion="paw"),
             _compose(pl0, dx=2, motion="paw"),
             _compose(gr1, dx=1, motion="paw"),
-            _compose(gr0, dx=-1),
-            sn,
+            gr00,
+            sn0,
         ],
         "chase_loop": [
-            sn,
-            _compose(pl0, dx=-10, motion="chase"),
-            _compose(pl1, dx=8, motion="chase"),
-            _compose(pl0, dx=6, motion="chase"),
-            _compose(pl1, dx=-8, motion="chase"),
-            sn,
+            sn0,
+            _compose(chase, dx=-10, motion="chase"),
+            _compose(chase, dx=8, motion="chase"),
+            _compose(chase, dx=6, motion="chase"),
+            _compose(chase, dx=-8, motion="chase"),
+            sn0,
         ],
         "bunny_kick": [
-            sn,
-            _compose(pl1, dy=-1, motion="kick"),
-            _compose(pl0, dy=2, motion="kick"),
-            _compose(pl1, dy=1, motion="kick"),
-            _compose(gr0, dy=1),
-            sn,
+            sn0,
+            _compose(kick, dy=-1, motion="kick"),
+            _compose(kick, dy=2, motion="kick"),
+            _compose(kick, dy=1, motion="kick"),
+            _compose(kick, dy=1),
+            sn0,
         ],
         "standing_swat": [
-            sn,
-            _compose(gr1, dy=-6, sy=1.03),
-            _compose(gr0, dy=-4, sy=1.02),
-            _compose(pl0, dy=-2),
-            _compose(gr1, dy=-3, motion="paw"),
-            sn,
+            sn0,
+            _compose(swat, dy=-6, sy=1.03),
+            _compose(swat, dy=-4, sy=1.02),
+            _compose(swat, dy=-2),
+            _compose(swat, dy=-3, motion="paw"),
+            sn0,
         ],
         "standoff": [
-            sn,
-            _compose(sn, dx=-5),
-            _compose(sn, dx=5),
-            _compose(gr0, dy=-1),
-            _compose(sn, dx=0),
-            sn,
+            sn0,
+            _compose(standoff, dx=-5),
+            _compose(standoff, dx=5),
+            _compose(standoff, dy=-1),
+            _compose(standoff, dx=0),
+            sn0,
         ],
         "explosive_clash": [
-            sn,
-            _compose(pl0, dx=-7, motion="clash"),
-            _compose(pl1, dx=7, motion="clash"),
-            _compose(gr1, motion="clash"),
-            _compose(pl0, dx=-2, motion="clash"),
-            sn,
+            sn0,
+            _compose(clash, dx=-7, motion="clash"),
+            _compose(clash, dx=7, motion="clash"),
+            _compose(clash, motion="clash"),
+            _compose(clash, dx=-2, motion="clash"),
+            sn0,
         ],
         "ear_cleaning": [
-            sn,
-            _compose(gr1, dy=-1),
-            _compose(gr0, dy=0),
-            _compose(gr1, dy=1),
-            _compose(sn_b, dy=0),
-            sn,
+            sn0,
+            _compose(ear, dy=-1),
+            _compose(ear, dy=0),
+            _compose(ear, dy=1),
+            _compose(ear, dy=0),
+            sn0,
         ],
         "face_wash_assist": [
-            sn,
-            _compose(gr0, dy=0),
-            _compose(sn_b, dy=1),
-            _compose(gr1, dy=0),
-            _compose(sn, dy=0),
-            sn,
+            sn0,
+            _compose(face, dy=0),
+            _compose(face, dy=1),
+            _compose(face, dy=0),
+            _compose(face, dy=0),
+            sn0,
         ],
     }
 
 
 def generate() -> None:
-    if not BASE_ATLAS.exists():
-        raise FileNotFoundError(f"Missing base atlas: {BASE_ATLAS}")
+    if BASE_BOARD.exists():
+        with Image.open(BASE_BOARD) as board:
+            board_rgba = board.convert("RGBA")
+            named_cells = _extract_cells_from_board(board_rgba)
+    elif FALLBACK_ATLAS.exists():
+        with Image.open(FALLBACK_ATLAS) as atlas:
+            atlas_rgba = atlas.convert("RGBA")
+            named_cells = _extract_cells_from_fallback_atlas(atlas_rgba)
+    else:
+        raise FileNotFoundError(f"Missing source images: {BASE_BOARD} and fallback {FALLBACK_ATLAS}")
 
-    with Image.open(BASE_ATLAS) as atlas:
-        atlas_rgba = atlas.convert("RGBA")
-        cells = _extract_cells(atlas_rgba)
-
-    named_cells = {
-        "gr0": cells[0],
-        "gr1": cells[1],
-        "pl0": cells[2],
-        "pl1": cells[3],
-        "sn": cells[4],
-        "sn_b": cells[5],
-    }
     clip_frames = _recipes(named_cells)
 
     for clip in CLIP_ORDER:
@@ -215,4 +263,3 @@ def generate() -> None:
 
 if __name__ == "__main__":
     generate()
-
