@@ -174,21 +174,17 @@
       [props.meta, props.metadataUrl]
     );
 
-    if (!meta) {
-      return null;
-    }
-
     var baseClip = props.clip || "duo_snuggle";
     var hoverClip = props.hoverClip || "duo_groom";
     var switchClipOnHover = props.switchClipOnHover !== false;
     var activeClipName =
-      isHovered && switchClipOnHover && meta.clips && meta.clips[hoverClip] ? hoverClip : baseClip;
+      isHovered && switchClipOnHover && meta && meta.clips && meta.clips[hoverClip] ? hoverClip : baseClip;
 
     var paused = props.paused === true;
     var speed = Number.isFinite(props.speed) && props.speed > 0 ? props.speed : 1;
 
     var anim = useSpriteAnimator(meta, activeClipName, paused, speed);
-    if (!anim.rect) {
+    if (!meta || !anim.rect) {
       return null;
     }
 
