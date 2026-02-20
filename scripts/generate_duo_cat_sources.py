@@ -4,40 +4,12 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageOps
 
-from _duo_cat_pack import FRAME_H, FRAME_W, CLIP_ORDER, SOURCE_ROOT
+from _duo_cat_pack import CLIP_ORDER, FRAME_H, FRAME_W, SOURCE_ROOT
 
-BASE_BOARD = Path("app/ui/static/catsCBO.png")
-FALLBACK_ATLAS = Path("app/ui/static/sprites/cats/cats_duo_atlas.png")
-
-
-def _crop_pose(board: Image.Image, cx: int, cy: int, w: int = 310, h: int = 190) -> Image.Image:
-    x0 = max(0, cx - (w // 2))
-    y0 = max(0, cy - (h // 2))
-    x1 = min(board.width, x0 + w)
-    y1 = min(board.height, y0 + h)
-    return board.crop((x0, y0, x1, y1))
+SOURCE_ATLAS = Path("app/ui/static/sprites/cats/cats_duo_atlas.png")
 
 
-def _extract_cells_from_board(board: Image.Image) -> dict[str, Image.Image]:
-    # Centers tuned for app/ui/static/catsCBO.png (1024x1536).
-    return {
-        "gr0": _crop_pose(board, 176, 560),   # Manual grooming
-        "gr1": _crop_pose(board, 512, 560),   # Nose boop / greeting
-        "pl0": _crop_pose(board, 176, 740),   # Play pounce
-        "pl1": _crop_pose(board, 512, 740),   # Paw batting
-        "sn": _crop_pose(board, 512, 1470),   # Snuggle idle (bottom center)
-        "sn_b": _crop_pose(board, 846, 560),  # Snuggle / curl together
-        "chase": _crop_pose(board, 846, 1088),
-        "kick": _crop_pose(board, 176, 914),
-        "swat": _crop_pose(board, 512, 914),
-        "standoff": _crop_pose(board, 846, 914),
-        "clash": _crop_pose(board, 176, 1262),
-        "ear": _crop_pose(board, 512, 1262),
-        "face": _crop_pose(board, 846, 1262),
-    }
-
-
-def _extract_cells_from_fallback_atlas(atlas: Image.Image) -> dict[str, Image.Image]:
+def _extract_atlas_cells(atlas: Image.Image) -> dict[str, Image.Image]:
     cells: list[Image.Image] = []
     for idx in range(6):
         x = (idx % 3) * FRAME_W
@@ -126,7 +98,7 @@ def _recipes(cells: dict[str, Image.Image]) -> dict[str, list[Image.Image]]:
     gr00 = _compose(gr0)
     gr10 = _compose(gr1)
 
-    # Frame 0 and frame 5 are identical snuggle for every clip.
+    # Every clip starts and ends on an identical snuggle frame for seamless chaining.
     return {
         "snuggle_idle": [
             sn0,
@@ -236,18 +208,15 @@ def _recipes(cells: dict[str, Image.Image]) -> dict[str, list[Image.Image]]:
 
 
 def generate() -> None:
-    if BASE_BOARD.exists():
-        with Image.open(BASE_BOARD) as board:
-            board_rgba = board.convert("RGBA")
-            named_cells = _extract_cells_from_board(board_rgba)
-    elif FALLBACK_ATLAS.exists():
-        with Image.open(FALLBACK_ATLAS) as atlas:
-            atlas_rgba = atlas.convert("RGBA")
-            named_cells = _extract_cells_from_fallback_atlas(atlas_rgba)
-    else:
-        raise FileNotFoundError(f"Missing source images: {BASE_BOARD} and fallback {FALLBACK_ATLAS}")
+    if not SOURCE_ATLAS.exists():
+        raise FileNotFoundError(f"Missing source atlas: {SOURCE_ATLAS}")
 
-    clip_frames = _recipes(named_cells)
+    with Image.open(SOURCE_ATLAS) as atlas:
+        atlas_rgba = atlas.convert("RGBA")
+        cells = _extract_atlas_cells(atlas_rgba)
+
+    clip_frames = _recipes(cells)
+    SOURCE_ROOT.mkdir(parents=True, exist_ok=True)
 
     for clip in CLIP_ORDER:
         out_dir = SOURCE_ROOT / clip
@@ -256,10 +225,12 @@ def generate() -> None:
         if len(frames) != 6:
             raise ValueError(f"{clip} must have exactly 6 frames, got {len(frames)}")
         for idx, frame in enumerate(frames):
-            frame.save(out_dir / f"frame_{idx}.png")
+            out_path = out_dir / f"frame_{idx}.png"
+            frame.save(out_path)
 
     print(f"generated source frames under {SOURCE_ROOT}")
 
 
 if __name__ == "__main__":
     generate()
+

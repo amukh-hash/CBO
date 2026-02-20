@@ -43,10 +43,11 @@ CLIP_CONFIG: dict[str, dict[str, Any]] = {
     "face_wash_assist": {"fps": 9, "loop": False, "return_to": "snuggle_idle"},
 }
 
-SOURCE_ROOT = Path("assets_src/duo_cats")
+SOURCE_ROOT = Path("app/ui/assets_src/duo_cats")
 PUBLIC_ROOT = Path("public/static/sprites/cats")
 APP_STATIC_ROOT = Path("app/ui/static/sprites/cats")
-ASSET_VERSION = "cat-tree-38"
+ASSET_VERSION = "cat-tree-39"
+SEAM_CLIPS = set(CLIP_ORDER)
 
 
 def frame_rects() -> list[dict[str, int]]:

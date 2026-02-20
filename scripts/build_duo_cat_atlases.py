@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 
-from PIL import Image, ImageChops
+from PIL import Image, ImageChops, ImageDraw
 
 from _duo_cat_pack import (
     APP_STATIC_ROOT,
@@ -58,7 +59,28 @@ def _build_atlas(frame_paths: list[Path], out_path: Path) -> None:
         for idx, frame in enumerate(opened):
             row = idx // COLS
             col = idx % COLS
-            atlas.alpha_composite(frame, (col * FRAME_W, row * FRAME_H))
+            atlas.paste(frame, (col * FRAME_W, row * FRAME_H), frame)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        atlas.save(out_path)
+    finally:
+        atlas.close()
+        for frame in opened:
+            frame.close()
+
+
+def _build_debug_atlas(frame_paths: list[Path], out_path: Path) -> None:
+    atlas = Image.new("RGBA", (ATLAS_W, ATLAS_H), (0, 0, 0, 0))
+    opened = [Image.open(path).convert("RGBA") for path in frame_paths]
+    try:
+        draw = ImageDraw.Draw(atlas)
+        for idx, frame in enumerate(opened):
+            row = idx // COLS
+            col = idx % COLS
+            x = col * FRAME_W
+            y = row * FRAME_H
+            atlas.paste(frame, (x, y), frame)
+            draw.rectangle((x, y, x + FRAME_W - 1, y + FRAME_H - 1), outline=(255, 0, 0, 220), width=2)
+            draw.text((x + 8, y + 8), f"f{idx}", fill=(255, 255, 255, 230))
         out_path.parent.mkdir(parents=True, exist_ok=True)
         atlas.save(out_path)
     finally:
@@ -116,22 +138,33 @@ def _runtime_meta() -> dict:
     }
 
 
-def build() -> None:
+def _clip_names() -> list[str]:
+    return [clip for clip in CLIP_ORDER if clip in CLIP_CONFIG]
+
+
+def build(debug: bool = False) -> None:
+    clips = _clip_names()
     app_atlas_root = APP_STATIC_ROOT / "duo_cats"
     public_atlas_root = PUBLIC_ROOT / "duo_cats"
-    for clip in CLIP_ORDER:
+    for clip in clips:
         frame_paths = _validate_frames(clip)
         _build_atlas(frame_paths, app_atlas_root / f"{clip}.png")
         _build_atlas(frame_paths, public_atlas_root / f"{clip}.png")
+        if debug:
+            _build_debug_atlas(frame_paths, app_atlas_root / f"{clip}.debug.png")
+            _build_debug_atlas(frame_paths, public_atlas_root / f"{clip}.debug.png")
 
     meta = _runtime_meta()
     for root in (APP_STATIC_ROOT, PUBLIC_ROOT):
         root.mkdir(parents=True, exist_ok=True)
         (root / "cats_duo_pack.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
-    print(f"built {len(CLIP_ORDER)} duo-cat atlases to {app_atlas_root} and {public_atlas_root}")
+    print(f"built {len(clips)} duo-cat atlases to {app_atlas_root} and {public_atlas_root}")
     print(f"wrote runtime metadata to {APP_STATIC_ROOT / 'cats_duo_pack.json'} and {PUBLIC_ROOT / 'cats_duo_pack.json'}")
 
 
 if __name__ == "__main__":
-    build()
+    parser = argparse.ArgumentParser(description="Build 3x2 duo-cat atlases and regenerate runtime metadata.")
+    parser.add_argument("--debug", action="store_true", help="also export debug atlases with grid lines")
+    args = parser.parse_args()
+    build(debug=args.debug)
