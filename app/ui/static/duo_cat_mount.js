@@ -429,21 +429,33 @@
 
     React.useEffect(
       function () {
-        if (!isDebugLoggingEnabled() || !anim.rect || anim.frameId === null) {
+        if (!isDebugLoggingEnabled() || !anim.rect || anim.frameId === null || !meta || !meta.clips) {
           return;
         }
+        var debugClip = meta.clips[ctrl.clipName];
+        var debugImagePath = debugClip && debugClip.imagePath ? debugClip.imagePath : meta.imagePath;
+        var debugScale = Number.isFinite(props.scale) && props.scale > 0 ? props.scale : 0.25;
+        var debugAtlasW = (Number.isFinite(meta.frameW) ? meta.frameW : 0) * (Number.isFinite(meta.cols) ? meta.cols : 0);
+        var debugAtlasH = (Number.isFinite(meta.frameH) ? meta.frameH : 0) * (Number.isFinite(meta.rows) ? meta.rows : 0);
+        var debugBgPos = String(-anim.rect.x * debugScale) + "px " + String(-anim.rect.y * debugScale) + "px";
+        var debugBgSize = String(debugAtlasW * debugScale) + "px " + String(debugAtlasH * debugScale) + "px";
         debugFrameCounterRef.current += 1;
-        if (debugFrameCounterRef.current % 30 === 0) {
+        if (debugFrameCounterRef.current % 5 === 0) {
           console.log(
-            "[DuoCats]",
+            "[DuoCats][frame]",
             "clip=" + String(ctrl.clipName),
             "frameId=" + String(anim.frameId),
             "x=" + String(anim.rect.x),
-            "y=" + String(anim.rect.y)
+            "y=" + String(anim.rect.y),
+            "bgPos=" + debugBgPos,
+            "bgSize=" + debugBgSize,
+            "img=" + String(debugImagePath),
+            "fps=" + String(debugClip && debugClip.fps),
+            "loop=" + String(debugClip && debugClip.loop)
           );
         }
       },
-      [anim.frameId, anim.rect, ctrl.clipName]
+      [anim.frameId, anim.rect, ctrl.clipName, meta, props.scale]
     );
 
     if (!meta || !anim.rect || !meta.clips || !meta.clips[ctrl.clipName]) {
