@@ -15,6 +15,7 @@ from app.core.config import get_settings
 from app.core.crypto import FieldEncryptor
 from app.db.models import Document, InsuranceProvider, Policy, PolicyCoverageTerm
 from app.domain.enums import DocumentType, NetworkTier, PlanType
+from app.domain.money import parse_money_to_cents
 from app.services.documents.store import DocumentStore
 
 router = APIRouter(prefix="/policies", tags=["policies"])
@@ -34,6 +35,15 @@ def _is_allowed_file(upload: UploadFile) -> bool:
     if upload.content_type and upload.content_type not in ALLOWED_MIME_TYPES:
         return False
     return True
+
+
+def _coerce_cents(usd_value: str | None, cents_value: int | None) -> int:
+    if usd_value and usd_value.strip():
+        try:
+            return max(0, parse_money_to_cents(usd_value))
+        except ValueError:
+            return max(0, cents_value or 0)
+    return max(0, cents_value or 0)
 
 
 def register_templates(templates: Jinja2Templates) -> None:
@@ -63,19 +73,25 @@ def register_templates(templates: Jinja2Templates) -> None:
         provider_id: int = Form(...),
         plan_type: str = Form(...),
         policy_number: str = Form(...),
+        monthly_premium_usd: str = Form(""),
         monthly_premium_cents: int = Form(0),
+        deductible_usd: str = Form(""),
         deductible_cents: int = Form(0),
+        oop_max_usd: str = Form(""),
         oop_max_cents: int = Form(0),
         user=Depends(current_user),
         db: Session = Depends(get_db),
     ):
+        monthly_premium = _coerce_cents(monthly_premium_usd, monthly_premium_cents)
+        deductible = _coerce_cents(deductible_usd, deductible_cents)
+        oop_max = _coerce_cents(oop_max_usd, oop_max_cents)
         policy = Policy(
             provider_id=provider_id,
             plan_type=PlanType(plan_type),
             policy_number_enc=encryptor.encrypt(policy_number),
-            monthly_premium_cents=max(0, monthly_premium_cents),
-            deductible_cents=max(0, deductible_cents),
-            oop_max_cents=max(0, oop_max_cents),
+            monthly_premium_cents=monthly_premium,
+            deductible_cents=deductible,
+            oop_max_cents=oop_max,
         )
         db.add(policy)
         db.flush()

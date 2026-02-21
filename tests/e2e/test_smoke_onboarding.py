@@ -53,5 +53,5 @@ def test_dashboard_calendar_and_expense_visible(client) -> None:
         headers=csrf_headers,
     )
     dashboard = client.get("/")
-    assert "2222" in dashboard.text
+    assert "$22.22" in dashboard.text
     assert "Appointments Calendar" in dashboard.text

@@ -9,23 +9,23 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin="anonymous" defer></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin="anonymous" defer></script>
   <script src="https://unpkg.com/framer-motion@11.3.19/dist/framer-motion.js" crossorigin="anonymous" defer></script>
-  <script src="/static/csrf.js?v=cat-tree-37" defer></script>
-  <script src="/static/cat_overlay_react.js?v=cat-tree-37" defer></script>
-  <script src="/static/duo_cat_mount.js?v=cat-tree-37" defer></script>
-  <link rel="stylesheet" href="/static/styles.css?v=cat-tree-37" />
+  <script src="/static/csrf.js?v=cat-tree-70" defer></script>
+  <script src="/static/duo_cat_mount.js?v=cat-tree-75" defer></script>
+  <script src="/static/hanging_tags.js?v=cat-tree-73" defer></script>
+  <link rel="stylesheet" href="/static/styles.css?v=cat-tree-95" />
   <style>
     /* Fallback to ensure vertical left nav even if an older cached stylesheet is still applied. */
-    body.app-shell { display: grid !important; grid-template-columns: 300px 1fr !important; align-items: start !important; }
-    .left-tree { min-height: 100vh !important; border-right: 1px solid rgba(118, 95, 71, 0.26) !important; }
-    .tree-nav { display: flex !important; flex-direction: column !important; gap: 12px !important; }
-    .tree-shelf { display: block !important; }
-    .tree-tab { display: block !important; }
+    body.app-shell { display: grid !important; grid-template-columns: minmax(260px, 26vw) 1fr !important; align-items: start !important; }
+    .left-tree.exact-tree { min-height: 100vh !important; border-right: 0 !important; }
+    .tree-nav.exact-tree-nav { display: block !important; }
+    .tree-tab.tree-hotspot { display: flex !important; align-items: center !important; justify-content: center !important; }
     .content-shell { margin: 0 !important; max-width: none !important; padding: 24px 20px 30px !important; }
   </style>
 </head>
 {% set current_path = request.url.path %}
 {% set nav_state = 0 %}
 {% set active_tab = "dashboard" %}
+{% set show_duo_badge = not current_path.startswith("/dev/cats/duo") %}
 {% if current_path.startswith("/providers") %}
   {% set nav_state = 1 %}
   {% set active_tab = "providers" %}
@@ -35,112 +35,80 @@
 {% elif current_path.startswith("/expenses") %}
   {% set nav_state = 3 %}
   {% set active_tab = "expenses" %}
-{% elif current_path.startswith("/health") %}
-  {% set nav_state = 4 %}
-  {% set active_tab = "health" %}
-{% elif current_path.startswith("/exports") %}
-  {% set nav_state = 5 %}
-  {% set active_tab = "exports" %}
 {% endif %}
 <body class="app-shell cat-state-{{ nav_state }}">
-<aside class="left-tree">
+<aside class="left-tree exact-tree">
   <div class="tree-scene">
-    <h1 class="tree-title">CB Organizer</h1>
-    <p class="tree-subtitle">Cat Tree Navigation</p>
-    <div class="tree-base" aria-hidden="true"></div>
-    <div class="tree-trunk" aria-hidden="true"></div>
-    <div class="tree-condo-roof" aria-hidden="true"></div>
-    <div class="tree-condo" aria-hidden="true"></div>
-    <div class="tree-condo-legs" aria-hidden="true"></div>
-    <div class="hanging-toy toy-a" aria-hidden="true"></div>
-    <div class="hanging-toy toy-b" aria-hidden="true"></div>
-    <nav class="tree-nav" aria-label="Primary">
-      <div class="tree-shelf shelf-rest side-right" data-cat-rest="top">
-        <div class="shelf-board cat-only">
-          <span class="visually-hidden">Top cat perch</span>
+    <h1 class="tree-title visually-hidden">CB Organizer</h1>
+    <p class="tree-subtitle visually-hidden">Cat Tree Navigation</p>
+    <nav class="tree-nav exact-tree-nav" aria-label="Primary">
+      <img src="/static/FloralCatTreeDirectory_tight.png" class="exact-tree-art" alt="" aria-hidden="true" />
+      <div class="tree-grid-overlay" aria-hidden="true">
+        <div class="tree-grid-labels tree-grid-labels-x">
+          <span style="left: 0%;">0</span>
+          <span style="left: 10%;">10</span>
+          <span style="left: 20%;">20</span>
+          <span style="left: 30%;">30</span>
+          <span style="left: 40%;">40</span>
+          <span style="left: 50%;">50</span>
+          <span style="left: 60%;">60</span>
+          <span style="left: 70%;">70</span>
+          <span style="left: 80%;">80</span>
+          <span style="left: 90%;">90</span>
+          <span style="left: 100%;">100</span>
+        </div>
+        <div class="tree-grid-labels tree-grid-labels-y">
+          <span style="top: 0%;">0</span>
+          <span style="top: 10%;">10</span>
+          <span style="top: 20%;">20</span>
+          <span style="top: 30%;">30</span>
+          <span style="top: 40%;">40</span>
+          <span style="top: 50%;">50</span>
+          <span style="top: 60%;">60</span>
+          <span style="top: 70%;">70</span>
+          <span style="top: 80%;">80</span>
+          <span style="top: 90%;">90</span>
+          <span style="top: 100%;">100</span>
         </div>
       </div>
+      <a class="tree-tab tree-hotspot hotspot-dashboard{% if active_tab == 'dashboard' %} active active-shelf{% endif %}" href="/" data-state="0">
+        <span class="hotspot-string" aria-hidden="true"></span>
+        <span class="hotspot-label">Dashboard</span>
+        {% if show_duo_badge and active_tab == 'dashboard' %}
+          {% include "partials/cat_duo_badge.html" %}
+        {% endif %}
+      </a>
 
-      <div class="tree-shelf shelf-0 side-left" data-tab-index="0">
-        <div class="shelf-board">
-          <a class="tree-tab{% if active_tab == 'dashboard' %} active active-shelf{% endif %}" href="/" data-state="0">
-            {% if active_tab == 'dashboard' %}
-            {% include "partials/cat_duo_badge.html" %}
-            {% endif %}
-            <span class="tab-text">Dashboard</span>
-          </a>
-        </div>
-      </div>
+      <a class="tree-tab tree-hotspot hotspot-providers{% if active_tab == 'providers' %} active active-shelf{% endif %}" href="/providers" data-state="1">
+        <span class="hotspot-string" aria-hidden="true"></span>
+        <span class="hotspot-label">Providers</span>
+        {% if show_duo_badge and active_tab == 'providers' %}
+          {% include "partials/cat_duo_badge.html" %}
+        {% endif %}
+      </a>
 
-      <div class="tree-shelf shelf-1 side-right" data-tab-index="1">
-        <div class="shelf-board">
-          <a class="tree-tab{% if active_tab == 'providers' %} active active-shelf{% endif %}" href="/providers" data-state="1">
-            {% if active_tab == 'providers' %}
-            {% include "partials/cat_duo_badge.html" %}
-            {% endif %}
-            <span class="tab-text">Providers</span>
-          </a>
-        </div>
-      </div>
+      <a class="tree-tab tree-hotspot hotspot-policies{% if active_tab == 'policies' %} active active-shelf{% endif %}" href="/policies" data-state="2">
+        <span class="hotspot-string" aria-hidden="true"></span>
+        <span class="hotspot-label">Policies</span>
+        {% if show_duo_badge and active_tab == 'policies' %}
+          {% include "partials/cat_duo_badge.html" %}
+        {% endif %}
+      </a>
 
-      <div class="tree-shelf shelf-2 side-left" data-tab-index="2">
-        <div class="shelf-board">
-          <a class="tree-tab{% if active_tab == 'policies' %} active active-shelf{% endif %}" href="/policies" data-state="2">
-            {% if active_tab == 'policies' %}
-            {% include "partials/cat_duo_badge.html" %}
-            {% endif %}
-            <span class="tab-text">Policies &amp; Docs</span>
-          </a>
-        </div>
-      </div>
+      <a class="tree-tab tree-hotspot hotspot-expenses{% if active_tab == 'expenses' %} active active-shelf{% endif %}" href="/expenses" data-state="3">
+        <span class="hotspot-string" aria-hidden="true"></span>
+        <span class="hotspot-label">Expenses</span>
+        {% if show_duo_badge and active_tab == 'expenses' %}
+          {% include "partials/cat_duo_badge.html" %}
+        {% endif %}
+      </a>
 
-      <div class="tree-shelf shelf-3 side-right" data-tab-index="3">
-        <div class="shelf-board">
-          <a class="tree-tab{% if active_tab == 'expenses' %} active active-shelf{% endif %}" href="/expenses" data-state="3">
-            {% if active_tab == 'expenses' %}
-            {% include "partials/cat_duo_badge.html" %}
-            {% endif %}
-            <span class="tab-text">Expenses</span>
-          </a>
-        </div>
-      </div>
-
-      <div class="tree-shelf shelf-4 side-left" data-tab-index="4">
-        <div class="shelf-board">
-          <a class="tree-tab{% if active_tab == 'health' %} active active-shelf{% endif %}" href="/health" data-state="4">
-            {% if active_tab == 'health' %}
-            {% include "partials/cat_duo_badge.html" %}
-            {% endif %}
-            <span class="tab-text">System Health</span>
-          </a>
-        </div>
-      </div>
-
-      <div class="tree-shelf shelf-5 side-right" data-tab-index="5">
-        <div class="shelf-board">
-          <a class="tree-tab{% if active_tab == 'exports' %} active active-shelf{% endif %}" href="/exports/archive.zip" data-state="5">
-            {% if active_tab == 'exports' %}
-            {% include "partials/cat_duo_badge.html" %}
-            {% endif %}
-            <span class="tab-text">Export ZIP</span>
-          </a>
-        </div>
-      </div>
-
-      <div class="tree-shelf shelf-6 side-left">
-        <div class="shelf-board">
-          <form method="post" action="/auth/logout">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-            <button type="submit" class="tree-tab tree-lock"><span class="tab-text">Lock</span></button>
-          </form>
-        </div>
-      </div>
-
-      <div class="tree-shelf shelf-rest side-left" data-cat-rest="bottom">
-        <div class="shelf-board cat-only">
-          <span class="visually-hidden">Bottom cat perch</span>
-        </div>
-      </div>
+      <form method="post" action="/auth/logout" class="tree-hotspot-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <button type="submit" class="tree-tab tree-hotspot hotspot-lock tree-lock" aria-label="Lock app">
+          <span class="visually-hidden">Lock app</span>
+        </button>
+      </form>
     </nav>
 
   </div>

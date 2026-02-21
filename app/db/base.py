@@ -49,33 +49,87 @@ def ensure_runtime_schema() -> None:
         if "notes" not in provider_cols:
             conn.execute(text("ALTER TABLE insurance_providers ADD COLUMN notes TEXT"))
 
-        policy_cols = _sqlite_columns(conn, "policies")
-        if "monthly_premium_cents" not in policy_cols:
-            conn.execute(text("ALTER TABLE policies ADD COLUMN monthly_premium_cents INTEGER NOT NULL DEFAULT 0"))
-
-        document_cols = _sqlite_columns(conn, "documents")
-        if "policy_id" not in document_cols:
-            conn.execute(text("ALTER TABLE documents ADD COLUMN policy_id INTEGER"))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_documents_policy_id ON documents(policy_id)"))
-
         conn.execute(
             text(
                 """
-                CREATE TABLE IF NOT EXISTS appointments (
+                CREATE TABLE IF NOT EXISTS provider_addresses (
                     id INTEGER PRIMARY KEY,
                     provider_id INTEGER NOT NULL,
-                    scheduled_at DATETIME NOT NULL,
-                    estimated_invoice_cents INTEGER NOT NULL DEFAULT 0,
-                    location_name VARCHAR(255),
-                    facility_address TEXT,
-                    prep_notes TEXT,
-                    notes TEXT,
+                    label VARCHAR(128),
+                    address_text TEXT NOT NULL,
                     created_at DATETIME NOT NULL,
                     FOREIGN KEY(provider_id) REFERENCES insurance_providers(id)
                 )
                 """
             )
         )
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_provider_addresses_provider_id ON provider_addresses(provider_id)"))
+        conn.execute(
+            text(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_provider_addresses_provider_text
+                ON provider_addresses(provider_id, address_text)
+                """
+            )
+        )
+
+        policy_cols = _sqlite_columns(conn, "policies")
+        if "monthly_premium_cents" not in policy_cols:
+            conn.execute(text("ALTER TABLE policies ADD COLUMN monthly_premium_cents INTEGER NOT NULL DEFAULT 0"))
+
+        expense_cols = _sqlite_columns(conn, "expense_line_items")
+        if "category" not in expense_cols:
+            conn.execute(text("ALTER TABLE expense_line_items ADD COLUMN category VARCHAR(128) NOT NULL DEFAULT 'medical'"))
+        if "idempotency_key" not in expense_cols:
+            conn.execute(text("ALTER TABLE expense_line_items ADD COLUMN idempotency_key VARCHAR(128)"))
+        if "reconciled" not in expense_cols:
+            conn.execute(text("ALTER TABLE expense_line_items ADD COLUMN reconciled BOOLEAN NOT NULL DEFAULT 0"))
+        conn.execute(
+            text(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_expense_idempotency_key
+                ON expense_line_items(idempotency_key)
+                """
+            )
+        )
+
+        document_cols = _sqlite_columns(conn, "documents")
+        if "policy_id" not in document_cols:
+            conn.execute(text("ALTER TABLE documents ADD COLUMN policy_id INTEGER"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_documents_policy_id ON documents(policy_id)"))
+        if "expense_id" not in document_cols:
+            conn.execute(text("ALTER TABLE documents ADD COLUMN expense_id INTEGER"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_documents_expense_id ON documents(expense_id)"))
+
+        appointment_cols = _sqlite_columns(conn, "appointments")
+        if appointment_cols:
+            if "location_name" not in appointment_cols:
+                conn.execute(text("ALTER TABLE appointments ADD COLUMN location_name VARCHAR(255)"))
+            if "facility_address" not in appointment_cols:
+                conn.execute(text("ALTER TABLE appointments ADD COLUMN facility_address TEXT"))
+            if "prep_notes" not in appointment_cols:
+                conn.execute(text("ALTER TABLE appointments ADD COLUMN prep_notes TEXT"))
+            if "notes" not in appointment_cols:
+                conn.execute(text("ALTER TABLE appointments ADD COLUMN notes TEXT"))
+        else:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE appointments (
+                        id INTEGER PRIMARY KEY,
+                        provider_id INTEGER NOT NULL,
+                        scheduled_at DATETIME NOT NULL,
+                        estimated_invoice_cents INTEGER NOT NULL DEFAULT 0,
+                        location_name VARCHAR(255),
+                        facility_address TEXT,
+                        prep_notes TEXT,
+                        notes TEXT,
+                        created_at DATETIME NOT NULL,
+                        FOREIGN KEY(provider_id) REFERENCES insurance_providers(id)
+                    )
+                    """
+                )
+            )
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_appointments_provider_id ON appointments(provider_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_appointments_scheduled_at ON appointments(scheduled_at)"))
 

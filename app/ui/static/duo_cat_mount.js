@@ -12,6 +12,8 @@
   var metaCache = null;
   var metaPromise = null;
   var invalidMetaWarned = false;
+  var DUO_PACK_VERSION = "cat-tree-41";
+  var DEFAULT_META_URL = "/static/sprites/cats/cats_duo_pack.json?v=" + DUO_PACK_VERSION;
 
   function isDebugLoggingEnabled() {
     if (typeof window === "undefined") {
@@ -48,20 +50,47 @@
     if (meta.default_clip && meta.clips[meta.default_clip]) {
       return meta.default_clip;
     }
-    if (meta.clips.duo_snuggle) {
-      return "duo_snuggle";
-    }
     if (meta.clips.snuggle_idle) {
       return "snuggle_idle";
+    }
+    if (meta.clips.duo_snuggle) {
+      return "duo_snuggle";
     }
     var keys = Object.keys(meta.clips);
     return keys.length > 0 ? keys[0] : "";
   }
 
+  function clipFrameCount(clip) {
+    if (!clip) {
+      return 0;
+    }
+    if (Array.isArray(clip.timeline) && clip.timeline.length > 0) {
+      return clip.timeline.length;
+    }
+    if (typeof clip.frame_count === "number" && clip.frame_count > 0) {
+      return clip.frame_count;
+    }
+    if (Array.isArray(clip.frames)) {
+      return clip.frames.length;
+    }
+    return 0;
+  }
+
+  function rectFromCell(meta, cellIndex) {
+    var col = cellIndex % meta.cols;
+    var row = Math.floor(cellIndex / meta.cols);
+    return {
+      id: cellIndex,
+      x: col * meta.frameW,
+      y: row * meta.frameH,
+      w: meta.frameW,
+      h: meta.frameH,
+    };
+  }
+
   function useSpriteAnimator(meta, clipName, paused, speed, onDone, playNonce) {
     var clip = meta && meta.clips ? meta.clips[clipName] : null;
-    var frameIds = clip && Array.isArray(clip.frames) ? clip.frames : [];
-    var frameCount = frameIds.length;
+    var frameCount = clipFrameCount(clip);
 
     var frameById = React.useMemo(function () {
       var map = Object.create(null);
@@ -82,10 +111,9 @@
     var doneRef = React.useRef(false);
     var doneNonceRef = React.useRef(null);
 
-    var firstFrameId = frameCount > 0 ? frameIds[0] : null;
-    var _a = React.useState(firstFrameId);
-    var frameId = _a[0];
-    var setFrameId = _a[1];
+    var _a = React.useState(0);
+    var frameIndex = _a[0];
+    var setFrameIndex = _a[1];
 
     var frameDurationMs = React.useMemo(function () {
       if (!clip || !clip.fps || speed <= 0) {
@@ -101,9 +129,9 @@
         accMsRef.current = 0;
         doneRef.current = false;
         doneNonceRef.current = playNonce;
-        setFrameId(firstFrameId);
+        setFrameIndex(0);
       },
-      [firstFrameId, clipName, meta, playNonce]
+      [clipName, meta, playNonce]
     );
 
     React.useEffect(
@@ -146,7 +174,7 @@
 
             frameIdxRef.current = nextIdx;
             if (nextIdx !== prevIdx) {
-              setFrameId(frameIds[nextIdx]);
+              setFrameIndex(nextIdx);
             }
 
             if (!clip.loop && nextIdx >= frameCount - 1) {
@@ -172,31 +200,67 @@
           accMsRef.current = 0;
         };
       },
-      [clip, clipName, frameCount, frameDurationMs, frameIds, onDone, paused, playNonce]
+      [clip, clipName, frameCount, frameDurationMs, onDone, paused, playNonce]
     );
 
-    var rect = null;
-    if (frameId !== null) {
-      rect = frameById[frameId] || null;
-      // Fallback for numeric frame IDs if metadata frame rect lookup is missing.
-      if (!rect && meta && Number.isFinite(meta.frameW) && Number.isFinite(meta.frameH) && Number.isFinite(meta.cols)) {
-        var idx = typeof frameId === "number" ? frameId : parseInt(frameId, 10);
-        if (Number.isFinite(idx)) {
-          var col = idx % meta.cols;
-          var row = Math.floor(idx / meta.cols);
-          rect = {
-            x: col * meta.frameW,
-            y: row * meta.frameH,
-            w: meta.frameW,
-            h: meta.frameH,
+    return React.useMemo(
+      function () {
+        if (!clip || !meta || frameCount <= 0) {
+          return {
+            frameId: null,
+            frameIndex: 0,
+            rect: null,
+            imagePath: null,
+            pageIndex: null,
+            cellIndex: null,
           };
         }
-      }
-    }
-    return {
-      frameId: frameId,
-      rect: rect,
-    };
+
+        var resolvedIndex = Math.max(0, Math.min(frameIndex, frameCount - 1));
+        var fallbackImagePath = clip && clip.imagePath ? clip.imagePath : meta.imagePath || null;
+
+        if (Array.isArray(clip.timeline) && clip.timeline.length > 0) {
+          var entry = clip.timeline[resolvedIndex];
+          var pageIndex = Array.isArray(entry) && typeof entry[0] === "number" ? entry[0] : -1;
+          var cellIndex = Array.isArray(entry) && typeof entry[1] === "number" ? entry[1] : -1;
+          var rect = null;
+          if (cellIndex >= 0) {
+            rect = rectFromCell(meta, cellIndex);
+          }
+          var pagePath = null;
+          if (pageIndex >= 0 && Array.isArray(clip.pages) && clip.pages[pageIndex]) {
+            pagePath = clip.pages[pageIndex].imagePath || null;
+          }
+          return {
+            frameId: null,
+            frameIndex: resolvedIndex,
+            rect: rect,
+            imagePath: pagePath || fallbackImagePath,
+            pageIndex: pageIndex >= 0 ? pageIndex : null,
+            cellIndex: cellIndex >= 0 ? cellIndex : null,
+          };
+        }
+
+        var frameIds = clip && Array.isArray(clip.frames) ? clip.frames : [];
+        var frameId = frameIds[resolvedIndex];
+        var legacyRect = null;
+        if (typeof frameId === "number") {
+          legacyRect = frameById[frameId] || null;
+          if (!legacyRect && Number.isFinite(meta.frameW) && Number.isFinite(meta.frameH) && Number.isFinite(meta.cols)) {
+            legacyRect = rectFromCell(meta, frameId);
+          }
+        }
+        return {
+          frameId: typeof frameId === "number" ? frameId : null,
+          frameIndex: resolvedIndex,
+          rect: legacyRect,
+          imagePath: fallbackImagePath,
+          pageIndex: null,
+          cellIndex: typeof frameId === "number" ? frameId : null,
+        };
+      },
+      [clip, frameById, frameCount, frameIndex, meta]
+    );
   }
 
   function useDuoCatClipController(meta) {
@@ -267,7 +331,7 @@
           });
 
           var clip = meta.clips[name];
-          if (!clip || clip.loop || !Array.isArray(clip.frames) || clip.frames.length <= 1) {
+          if (!clip || clip.loop || clipFrameCount(clip) <= 1) {
             if (resolveRef.current) {
               resolveRef.current();
             }
@@ -323,6 +387,10 @@
       [defaultClip, meta]
     );
 
+    var isBusy = React.useCallback(function () {
+      return inQueueRef.current || resolveRef.current !== null;
+    }, []);
+
     return {
       clipName: clipName,
       playNonce: playNonce,
@@ -330,16 +398,304 @@
       setIdle: setIdle,
       playOnce: playOnce,
       queue: queue,
+      isBusy: isBusy,
     };
+  }
+
+  function clampMs(value, fallback) {
+    var safeFallback = typeof fallback === "number" && Number.isFinite(fallback) ? Math.max(0, Math.floor(fallback)) : 0;
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      return safeFallback;
+    }
+    return Math.max(0, Math.floor(value));
+  }
+
+  function randomRange(range, fallback) {
+    var safeFallback = clampMs(fallback, 0);
+    if (!Array.isArray(range) || range.length !== 2) {
+      return safeFallback;
+    }
+    var min = clampMs(range[0], safeFallback);
+    var max = clampMs(range[1], safeFallback);
+    if (max <= min) {
+      return min;
+    }
+    return min + Math.floor(Math.random() * (max - min + 1));
+  }
+
+  function weightedPick(pool) {
+    if (!Array.isArray(pool) || pool.length === 0) {
+      return null;
+    }
+    var total = 0;
+    for (var i = 0; i < pool.length; i += 1) {
+      var pair = pool[i];
+      if (!Array.isArray(pair) || pair.length !== 2) {
+        continue;
+      }
+      var weight = pair[1];
+      if (typeof weight === "number" && Number.isFinite(weight) && weight > 0) {
+        total += weight;
+      }
+    }
+    if (total <= 0) {
+      return null;
+    }
+
+    var cursor = Math.random() * total;
+    for (var j = 0; j < pool.length; j += 1) {
+      var entry = pool[j];
+      if (!Array.isArray(entry) || entry.length !== 2) {
+        continue;
+      }
+      var clip = entry[0];
+      var w = entry[1];
+      if (typeof w !== "number" || !Number.isFinite(w) || w <= 0) {
+        continue;
+      }
+      cursor -= w;
+      if (cursor <= 0) {
+        return clip;
+      }
+    }
+    var last = pool[pool.length - 1];
+    return Array.isArray(last) && typeof last[0] === "string" ? last[0] : null;
+  }
+
+  function waitMs(ms, cancelledRef) {
+    var duration = Math.max(0, Math.floor(ms));
+    if (duration <= 0) {
+      return Promise.resolve();
+    }
+    return new Promise(function (resolve) {
+      var timer = window.setTimeout(resolve, duration);
+      if (cancelledRef.current) {
+        window.clearTimeout(timer);
+        resolve();
+      }
+    });
+  }
+
+  function useDuoCatPlaylist(meta, controller, playlistName, enabled) {
+    var nextPickAtRef = React.useRef(0);
+    var phaseRef = React.useRef("enter_idle");
+    var sequenceIndexRef = React.useRef(0);
+
+    var playlist = React.useMemo(
+      function () {
+        if (!meta || !meta.library || !meta.library.playlists || !playlistName) {
+          return null;
+        }
+        return meta.library.playlists[playlistName] || null;
+      },
+      [meta, playlistName]
+    );
+
+    React.useEffect(
+      function () {
+        if (!enabled || !meta || !playlist || !meta.clips) {
+          return undefined;
+        }
+
+        var debug = isDebugLoggingEnabled();
+        var cancelledRef = { current: false };
+        var foundation = meta.library && meta.library.foundation ? meta.library.foundation : null;
+        var idleClip = playlist.idle_clip || foundation || meta.default_clip || "snuggle_idle";
+        nextPickAtRef.current = 0;
+        phaseRef.current = "enter_idle";
+        sequenceIndexRef.current = 0;
+
+        function isBusy() {
+          if (!controller || typeof controller.isBusy !== "function") {
+            return false;
+          }
+          try {
+            return !!controller.isBusy();
+          } catch (_err) {
+            return false;
+          }
+        }
+
+        function readIdleHoldMs() {
+          if (playlist.mode === "sequence") {
+            return clampMs(playlist.idle_hold_ms, 0);
+          }
+          return randomRange(playlist.idle_hold_ms_range, 0);
+        }
+
+        function readBetweenHoldMs() {
+          if (playlist.mode === "sequence") {
+            return clampMs(playlist.between_hold_ms, 0);
+          }
+          return randomRange(playlist.between_hold_ms_range, 0);
+        }
+
+        function pickNextClip() {
+          if (playlist.mode === "sequence") {
+            if (Array.isArray(playlist.clips) && playlist.clips.length > 0) {
+              var sequenceClip = playlist.clips[sequenceIndexRef.current % playlist.clips.length] || null;
+              sequenceIndexRef.current += 1;
+              return sequenceClip;
+            }
+            return null;
+          }
+          if (playlist.mode === "weighted_random") {
+            return weightedPick(playlist.pool);
+          }
+          return null;
+        }
+
+        function setNextPickDelay(delayMs) {
+          nextPickAtRef.current = Date.now() + clampMs(delayMs, 0);
+        }
+
+        if (debug) {
+          console.log(
+            "[DuoCats][playlist]",
+            "start",
+            "playlist=" + String(playlistName || ""),
+            "mode=" + String(playlist.mode),
+            "idleClip=" + String(idleClip),
+            "phase=" + String(phaseRef.current)
+          );
+        }
+
+        function run() {
+          if (cancelledRef.current) {
+            return;
+          }
+
+          var now = Date.now();
+          var busy = isBusy();
+          var delayUntilPick = Math.max(0, nextPickAtRef.current - now);
+
+          if (debug) {
+            console.log(
+              "[DuoCats][playlist]",
+              "tick",
+              "playlist=" + String(playlistName || ""),
+              "mode=" + String(playlist.mode),
+              "idleClip=" + String(idleClip),
+              "phase=" + String(phaseRef.current),
+              "busy=" + String(busy),
+              "waitMs=" + String(delayUntilPick)
+            );
+          }
+
+          if (busy) {
+            waitMs(120, cancelledRef).then(function () {
+              if (!cancelledRef.current) {
+                run();
+              }
+            });
+            return;
+          }
+
+          if (delayUntilPick > 0) {
+            waitMs(Math.min(delayUntilPick, 250), cancelledRef).then(function () {
+              if (!cancelledRef.current) {
+                run();
+              }
+            });
+            return;
+          }
+
+          if (phaseRef.current === "enter_idle") {
+            var idlePromise;
+            if (meta.clips[idleClip]) {
+              idlePromise = controller.playOnce(idleClip);
+            } else {
+              controller.setIdle();
+              idlePromise = Promise.resolve();
+            }
+
+            idlePromise
+              .catch(function () {
+                return undefined;
+              })
+              .then(function () {
+                if (cancelledRef.current) {
+                  return;
+                }
+                phaseRef.current = "pick_clip";
+                setNextPickDelay(readIdleHoldMs());
+              })
+              .then(function () {
+                if (!cancelledRef.current) {
+                  run();
+                }
+              });
+            return;
+          }
+
+          var nextClip = pickNextClip();
+          if (debug) {
+            console.log(
+              "[DuoCats][playlist]",
+              "next",
+              "playlist=" + String(playlistName || ""),
+              "clip=" + String(nextClip || "")
+            );
+          }
+
+          var playPromise = Promise.resolve();
+          if (nextClip && meta.clips[nextClip]) {
+            playPromise = controller.playOnce(nextClip).then(function () {
+              if (cancelledRef.current) {
+                return undefined;
+              }
+              var holdLast = clampMs(meta.clips[nextClip].hold_last_ms, 0);
+              if (holdLast > 0) {
+                return waitMs(holdLast, cancelledRef);
+              }
+              return undefined;
+            });
+          }
+
+          playPromise
+            .catch(function () {
+              return undefined;
+            })
+            .then(function () {
+              if (cancelledRef.current) {
+                return;
+              }
+              phaseRef.current = "enter_idle";
+              setNextPickDelay(readBetweenHoldMs());
+            })
+            .then(function () {
+              if (!cancelledRef.current) {
+                run();
+              }
+            });
+        }
+
+        run();
+        return function () {
+          cancelledRef.current = true;
+          nextPickAtRef.current = 0;
+          if (debug) {
+            console.log("[DuoCats][playlist]", "stop", "playlist=" + String(playlistName || ""));
+          }
+        };
+      },
+      [controller.isBusy, controller.playOnce, controller.setIdle, enabled, meta, playlist, playlistName]
+    );
   }
 
   function DuoCatSprite(props) {
     var _a = React.useState(props.meta || metaCache);
     var meta = _a[0];
     var setMeta = _a[1];
+    var _b = React.useState(false);
+    var playlistSuspended = _b[0];
+    var setPlaylistSuspended = _b[1];
 
     var hoverPlayedRef = React.useRef(false);
     var initialClipAppliedRef = React.useRef(false);
+    var activeUserActionsRef = React.useRef(0);
+    var mountLoggedRef = React.useRef(false);
+    var wrapperNodeRef = React.useRef(null);
     var frameNodeRef = React.useRef(null);
     var metaShapeWarnedRef = React.useRef(false);
     var motionProbeActiveRef = React.useRef(false);
@@ -364,7 +720,7 @@
           return undefined;
         }
 
-        fetchMeta(props.metadataUrl || "/static/sprites/cats/cats_duo_pack.json")
+        fetchMeta(props.metadataUrl || DEFAULT_META_URL)
           .then(function (loaded) {
             if (!cancelled) {
               setMeta(loaded);
@@ -384,12 +740,43 @@
     );
 
     var ctrl = useDuoCatClipController(meta);
-    var baseClip = props.clip || "";
+    var playlistName = props.playlist || "ambient_random";
+    var playlistEnabled = props.playlistEnabled !== false;
+    var playlistRunnerEnabled = playlistEnabled && !playlistSuspended;
+    useDuoCatPlaylist(
+      meta,
+      { playOnce: ctrl.playOnce, setIdle: ctrl.setIdle, isBusy: ctrl.isBusy },
+      playlistName,
+      playlistRunnerEnabled
+    );
+
+    var baseClip = props.clip || (meta && meta.default_clip) || "snuggle_idle";
     var baseClipExists = !!(meta && meta.clips && baseClip && meta.clips[baseClip]);
     var hoverClip = props.hoverClip || "nose_boop";
     var hoverClipExists = !!(meta && meta.clips && hoverClip && meta.clips[hoverClip]);
     var switchClipOnHover = props.switchClipOnHover !== false;
     var idleProbeClip = baseClipExists ? baseClip : resolveDefaultClip(meta);
+
+    React.useEffect(
+      function () {
+        if (!isDebugLoggingEnabled() || !meta || !meta.clips) {
+          return;
+        }
+        if (mountLoggedRef.current) {
+          return;
+        }
+        mountLoggedRef.current = true;
+        console.log(
+          "[DuoCats][mount]",
+          "playlist=" + String(playlistName),
+          "playlistEnabled=" + String(playlistEnabled),
+          "default_clip=" + String(meta.default_clip || "snuggle_idle"),
+          "clip=" + String(baseClip),
+          "hoverClip=" + String(hoverClip)
+        );
+      },
+      [baseClip, hoverClip, meta, playlistEnabled, playlistName]
+    );
 
     React.useEffect(
       function () {
@@ -413,6 +800,9 @@
 
     React.useEffect(
       function () {
+        if (playlistEnabled) {
+          return;
+        }
         if (!meta || !meta.clips) {
           return;
         }
@@ -431,7 +821,7 @@
         }
         ctrl.setIdle();
       },
-      [baseClip, baseClipExists, ctrl.playOnce, ctrl.setIdle, meta]
+      [baseClip, baseClipExists, ctrl.playOnce, ctrl.setIdle, meta, playlistEnabled]
     );
 
     React.useEffect(
@@ -453,8 +843,33 @@
 
     var anim = useSpriteAnimator(meta, ctrl.clipName, paused, speed, ctrl.onDone, ctrl.playNonce);
     var debugFrameCounterRef = React.useRef(0);
-    var activeClip = meta && meta.clips ? meta.clips[ctrl.clipName] : null;
-    var clipImagePath = activeClip && activeClip.imagePath ? activeClip.imagePath : meta && meta.imagePath ? meta.imagePath : "";
+    var clipImagePath = anim && anim.imagePath ? anim.imagePath : meta && meta.imagePath ? meta.imagePath : "";
+    var showRuntimeOverlay = window.__DUO_CATS_DEBUG_OVERLAY__ === true;
+    var metaMismatchReason = "";
+    if (meta && meta.clips) {
+      if (meta.default_clip !== "snuggle_idle") {
+        metaMismatchReason = "expected default_clip=snuggle_idle, got " + String(meta.default_clip);
+      } else {
+        var snuggleMeta = meta.clips.snuggle_idle;
+        var expectedImg = "/static/sprites/cats/duo_cats/snuggle_idle_p0.png?v=" + DUO_PACK_VERSION;
+        if (!snuggleMeta || !snuggleMeta.imagePath) {
+          metaMismatchReason = "missing clips.snuggle_idle.imagePath";
+        } else if (snuggleMeta.imagePath.indexOf(expectedImg) !== 0) {
+          metaMismatchReason = "unexpected snuggle_idle imagePath: " + String(snuggleMeta.imagePath);
+        }
+      }
+    }
+    var debugText =
+      "clip=" +
+      String(ctrl.clipName) +
+      " logical=" +
+      String(anim.frameIndex) +
+      " page=" +
+      String(anim.pageIndex) +
+      " cell=" +
+      String(anim.cellIndex) +
+      " img=" +
+      String(clipImagePath);
 
     React.useEffect(
       function () {
@@ -526,16 +941,16 @@
         }
         motionProbeRectsRef.current[String(anim.rect.x) + "," + String(anim.rect.y)] = true;
       },
-      [anim.frameId, anim.rect]
+      [anim.frameIndex, anim.rect]
     );
 
     React.useEffect(
       function () {
-        if (!isDebugLoggingEnabled() || !anim.rect || anim.frameId === null || !meta || !meta.clips) {
+        if (!isDebugLoggingEnabled() || !anim.rect || !meta || !meta.clips) {
           return;
         }
         var debugClip = meta.clips[ctrl.clipName];
-        var debugImagePath = debugClip && debugClip.imagePath ? debugClip.imagePath : meta.imagePath;
+        var debugImagePath = anim.imagePath || (debugClip && debugClip.imagePath ? debugClip.imagePath : meta.imagePath);
         var debugScale = Number.isFinite(props.scale) && props.scale > 0 ? props.scale : 0.25;
         var debugAtlasW = (Number.isFinite(meta.frameW) ? meta.frameW : 0) * (Number.isFinite(meta.cols) ? meta.cols : 0);
         var debugAtlasH = (Number.isFinite(meta.frameH) ? meta.frameH : 0) * (Number.isFinite(meta.rows) ? meta.rows : 0);
@@ -562,12 +977,14 @@
           console.log(
             "[DuoCats][frame]",
             "clip=" + String(ctrl.clipName),
-            "frameId=" + String(anim.frameId),
+            "logicalFrameIndex=" + String(anim.frameIndex),
+            "pageIndex=" + String(anim.pageIndex),
+            "cellIndex=" + String(anim.cellIndex),
             "x=" + String(anim.rect.x),
             "y=" + String(anim.rect.y),
             "bgPos=" + debugBgPos,
             "bgSize=" + debugBgSize,
-            "img=" + String(debugImagePath),
+            "imagePath=" + String(debugImagePath),
             "computedBgPos=" + String(computedBgPos),
             "fps=" + String(debugClip && debugClip.fps),
             "loop=" + String(debugClip && debugClip.loop)
@@ -581,7 +998,21 @@
           }
         }
       },
-      [anim.frameId, anim.rect, ctrl.clipName, meta, props.scale]
+      [anim.frameIndex, anim.pageIndex, anim.cellIndex, anim.rect, anim.imagePath, ctrl.clipName, meta, props.scale]
+    );
+
+    React.useEffect(
+      function () {
+        if (!wrapperNodeRef.current) {
+          return;
+        }
+        var node = wrapperNodeRef.current;
+        node.setAttribute("data-duo-mounted", DUO_PACK_VERSION);
+        node.setAttribute("data-duo-active-img", String(clipImagePath || ""));
+        node.setAttribute("data-duo-clip", String(ctrl.clipName || ""));
+        node.setAttribute("data-duo-frame", String(anim.frameIndex));
+      },
+      [anim.frameIndex, clipImagePath, ctrl.clipName]
     );
 
     if (!meta || !anim.rect || !meta.clips || !meta.clips[ctrl.clipName]) {
@@ -615,6 +1046,7 @@
       height: String(scaledH) + "px",
       overflow: "hidden",
       transformOrigin: "center bottom",
+      position: "relative",
     };
 
     var frameStyle = {
@@ -628,9 +1060,72 @@
       imageRendering: "pixelated",
       willChange: "background-position",
     };
+    var overlayStyle = {
+      position: "absolute",
+      left: "0px",
+      top: "0px",
+      fontSize: "10px",
+      lineHeight: "12px",
+      padding: "2px 4px",
+      background: "rgba(0,0,0,0.6)",
+      color: "#fff",
+      zIndex: 5,
+      pointerEvents: "none",
+      maxWidth: "100%",
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+    };
+    var metaErrorStyle = {
+      position: "absolute",
+      left: "0px",
+      right: "0px",
+      top: "0px",
+      background: "rgba(180,0,0,0.92)",
+      color: "#fff",
+      fontSize: "11px",
+      lineHeight: "13px",
+      padding: "4px 6px",
+      zIndex: 6,
+      pointerEvents: "none",
+    };
 
     var className = props.className || "duo-cat-sprite";
     var spriteClassName = props.spriteClassName || "duo-cat-sprite-frame";
+    var defaultClickQueue = ["mutual_groom", "paw_batting", "snuggle_curl"];
+    var requestedClickQueue = Array.isArray(props.clickQueue) && props.clickQueue.length > 0 ? props.clickQueue : defaultClickQueue;
+    var validClickQueue = requestedClickQueue.filter(function (name) {
+      return !!(meta && meta.clips && meta.clips[name]);
+    });
+    var canClickBurst = validClickQueue.length > 0;
+
+    var runUserAction = function (runner) {
+      var debug = isDebugLoggingEnabled();
+      activeUserActionsRef.current += 1;
+      setPlaylistSuspended(true);
+      if (debug) {
+        console.log("[DuoCats][playlist]", "pause", "activeUserActions=" + String(activeUserActionsRef.current));
+      }
+      return Promise.resolve()
+        .then(function () {
+          return runner();
+        })
+        .catch(function () {
+          return undefined;
+        })
+        .then(function () {
+          activeUserActionsRef.current -= 1;
+          if (activeUserActionsRef.current <= 0) {
+            activeUserActionsRef.current = 0;
+            ctrl.setIdle();
+            setPlaylistSuspended(false);
+            if (debug) {
+              console.log("[DuoCats][playlist]", "resume");
+            }
+          }
+        });
+    };
+
     var handleHoverStart = function () {
       if (!switchClipOnHover || !hoverClipExists) {
         return;
@@ -639,11 +1134,33 @@
         return;
       }
       hoverPlayedRef.current = true;
-      ctrl.playOnce(hoverClip);
+      runUserAction(function () {
+        return ctrl.playOnce(hoverClip);
+      });
     };
     var handleHoverEnd = function () {
       hoverPlayedRef.current = false;
-      ctrl.setIdle();
+      if (!playlistEnabled) {
+        ctrl.setIdle();
+      }
+    };
+    var handleClickBurst = function () {
+      if (!canClickBurst) {
+        return;
+      }
+      runUserAction(function () {
+        return ctrl.queue(validClickQueue);
+      });
+    };
+    var handleKeyDown = function (event) {
+      var key = event && event.key ? event.key : "";
+      if (key !== "Enter" && key !== " " && key !== "Spacebar") {
+        return;
+      }
+      if (event && typeof event.preventDefault === "function") {
+        event.preventDefault();
+      }
+      handleClickBurst();
     };
 
     if (motion) {
@@ -652,14 +1169,22 @@
         {
           className: className,
           style: wrapperStyle,
+          ref: wrapperNodeRef,
           initial: { opacity: 0.8 },
           animate: { opacity: 1 },
           whileHover: { scale: 1.02 },
           transition: { duration: 0.2, ease: "easeOut" },
           onHoverStart: handleHoverStart,
           onHoverEnd: handleHoverEnd,
+          onClick: handleClickBurst,
+          onKeyDown: handleKeyDown,
+          role: canClickBurst ? "button" : undefined,
+          tabIndex: canClickBurst ? 0 : undefined,
+          "aria-label": canClickBurst ? "Play interaction burst" : undefined,
         },
-        h("div", { className: spriteClassName, style: frameStyle, ref: frameNodeRef })
+        h("div", { className: spriteClassName, style: frameStyle, ref: frameNodeRef }),
+        showRuntimeOverlay ? h("div", { style: overlayStyle }, debugText) : null,
+        showRuntimeOverlay && metaMismatchReason ? h("div", { style: metaErrorStyle }, "[DuoCats meta mismatch] " + metaMismatchReason) : null
       );
     }
 
@@ -668,11 +1193,51 @@
       {
         className: className,
         style: wrapperStyle,
+        ref: wrapperNodeRef,
         onMouseEnter: handleHoverStart,
         onMouseLeave: handleHoverEnd,
+        onClick: handleClickBurst,
+        onKeyDown: handleKeyDown,
+        role: canClickBurst ? "button" : undefined,
+        tabIndex: canClickBurst ? 0 : undefined,
+        "aria-label": canClickBurst ? "Play interaction burst" : undefined,
       },
-      h("div", { className: spriteClassName, style: frameStyle, ref: frameNodeRef })
+      h("div", { className: spriteClassName, style: frameStyle, ref: frameNodeRef }),
+      showRuntimeOverlay ? h("div", { style: overlayStyle }, debugText) : null,
+      showRuntimeOverlay && metaMismatchReason ? h("div", { style: metaErrorStyle }, "[DuoCats meta mismatch] " + metaMismatchReason) : null
     );
+  }
+
+  function readBoolean(value, defaultValue) {
+    if (typeof value !== "string") {
+      return defaultValue;
+    }
+    var normalized = value.trim().toLowerCase();
+    if (normalized === "false") {
+      return false;
+    }
+    if (normalized === "true") {
+      return true;
+    }
+    return defaultValue;
+  }
+
+  function readCsvList(value, fallback) {
+    if (typeof value !== "string") {
+      return fallback.slice();
+    }
+    var parsed = value
+      .split(",")
+      .map(function (item) {
+        return item.trim();
+      })
+      .filter(function (item) {
+        return item.length > 0;
+      });
+    if (parsed.length > 0) {
+      return parsed;
+    }
+    return fallback.slice();
   }
 
   function readProps(node) {
@@ -683,7 +1248,10 @@
       scale: Number.parseFloat(node.dataset.scale || "0.25") || 0.25,
       paused: node.dataset.pause === "true",
       speed: Number.parseFloat(node.dataset.speed || "1") || 1,
-      metadataUrl: node.dataset.metadataUrl || "/static/sprites/cats/cats_duo_pack.json",
+      metadataUrl: node.dataset.metadataUrl || DEFAULT_META_URL,
+      playlist: node.dataset.playlist || "ambient_random",
+      playlistEnabled: readBoolean(node.dataset.playlistEnabled, true),
+      clickQueue: readCsvList(node.dataset.clickQueue, ["mutual_groom", "paw_batting", "snuggle_curl"]),
     };
   }
 
@@ -691,8 +1259,20 @@
     if (mounted.has(node)) {
       return;
     }
+    node.setAttribute("data-duo-mounted", DUO_PACK_VERSION);
+    var props = readProps(node);
+    if (isDebugLoggingEnabled()) {
+      console.log(
+        "[DuoCats][mount-props]",
+        "playlist=" + String(props.playlist),
+        "playlistEnabled=" + String(props.playlistEnabled),
+        "clip=" + String(props.clip),
+        "hoverClip=" + String(props.hoverClip),
+        "clickQueue=" + String((props.clickQueue || []).join(","))
+      );
+    }
     var root = window.ReactDOM.createRoot(node);
-    root.render(h(DuoCatSprite, readProps(node)));
+    root.render(h(DuoCatSprite, props));
     mounted.set(node, root);
   }
 

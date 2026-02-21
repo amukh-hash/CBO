@@ -4,33 +4,213 @@
 {% if error == "exists" %}
 <p class="small">A provider with that name already exists.</p>
 {% endif %}
+
 <div class="card">
-  <form method="post" action="/providers/add">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-    <label>Name<input name="name" required /></label>
-    <label>Specialty<input name="specialty" placeholder="Cardiology, Primary Care, etc." /></label>
-    <label>Selector Color<input name="selector_color" type="color" value="#C2185B" /></label>
-    <label>Estimated Co-pay (cents)<input name="estimated_copay_cents" type="number" min="0" value="0" /></label>
-    <label>Notes<textarea name="notes" rows="3" placeholder="Phone number, office tips, referral notes"></textarea></label>
-    <label>Adapter
-      <select name="adapter_key">{% for a in adapters %}<option value="{{ a }}">{{ a }}</option>{% endfor %}</select>
-    </label>
-    <button type="submit">Add Provider</button>
-  </form>
-</div>
-<div class="card">
+  <div class="module-head">
+    <h2>Provider Directory</h2>
+    <button type="button" class="module-plus" id="open-add-provider" aria-label="Add provider">+</button>
+  </div>
   <table>
-    <tr><th>Name</th><th>Specialty</th><th>Color</th><th>Co-pay (cents)</th><th>Notes</th><th>Status</th></tr>
-    {% for p in providers %}
     <tr>
+      <th>Name</th>
+      <th>Specialty</th>
+      <th>Color</th>
+      <th>Default Co-pay</th>
+      <th>Addresses</th>
+      <th>Notes</th>
+      <th>Status</th>
+    </tr>
+    {% for p in providers %}
+    <tr
+      class="provider-row"
+      tabindex="0"
+      role="button"
+      data-provider-id="{{ p.id }}"
+      data-name="{{ p.name }}"
+      data-specialty="{{ p.specialty or '' }}"
+      data-color="{{ p.selector_color }}"
+      data-copay-usd="{{ '%.2f'|format(p.estimated_copay_cents / 100) }}"
+      data-notes="{{ p.notes or '' }}"
+      data-addresses='{{ provider_addresses_by_id.get(p.id, []) | tojson }}'
+    >
       <td>{{ p.name }}</td>
       <td>{{ p.specialty or "-" }}</td>
       <td><span class="color-chip" style="background: {{ p.selector_color }};"></span> {{ p.selector_color }}</td>
-      <td>{{ p.estimated_copay_cents }}</td>
+      <td>${{ '%.2f'|format(p.estimated_copay_cents / 100) }}</td>
+      <td>{{ provider_addresses_by_id.get(p.id, [])|length }}</td>
       <td>{{ p.notes or "-" }}</td>
       <td>{{ p.status }}</td>
     </tr>
     {% endfor %}
   </table>
 </div>
+
+<dialog id="add-provider-dialog">
+  <h3>Add Provider</h3>
+  <form method="post" action="/providers/add" id="add-provider-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <label>Name<input name="name" required /></label>
+    <label>Specialty<input name="specialty" placeholder="Cardiology, Primary Care, etc." /></label>
+    <label>Selector Color<input name="selector_color" type="color" value="#C2185B" /></label>
+    <label>Estimated Co-pay (USD)
+      <input name="estimated_copay_usd" type="number" step="0.01" min="0" value="0.00" />
+    </label>
+    <label>Notes<textarea name="notes" rows="3" placeholder="Phone number, office tips, referral notes"></textarea></label>
+    <fieldset>
+      <legend>Provider Addresses</legend>
+      <div id="add-provider-addresses" class="address-list"></div>
+      <button type="button" id="add-provider-address-btn">Add Address</button>
+    </fieldset>
+    <div class="calendar-controls">
+      <button type="submit">Save Provider</button>
+      <button type="button" id="add-provider-close">Close</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="edit-provider-dialog">
+  <h3>Edit Provider</h3>
+  <form method="post" action="/providers/update" id="edit-provider-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <input type="hidden" name="provider_id" id="edit-provider-id" />
+    <label>Name<input name="name" id="edit-provider-name" required /></label>
+    <label>Specialty<input name="specialty" id="edit-provider-specialty" /></label>
+    <label>Selector Color<input name="selector_color" id="edit-provider-color" type="color" value="#C2185B" /></label>
+    <label>Estimated Co-pay (USD)
+      <input name="estimated_copay_usd" id="edit-provider-copay" type="number" step="0.01" min="0" value="0.00" />
+    </label>
+    <label>Notes<textarea name="notes" id="edit-provider-notes" rows="3"></textarea></label>
+    <fieldset>
+      <legend>Provider Addresses</legend>
+      <div id="edit-provider-addresses" class="address-list"></div>
+      <button type="button" id="edit-provider-address-btn">Add Address</button>
+    </fieldset>
+    <div class="calendar-controls">
+      <button type="submit">Save Changes</button>
+      <button type="button" id="edit-provider-close">Close</button>
+    </div>
+  </form>
+  <form method="post" action="/providers/delete" class="dialog-danger-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <input type="hidden" name="provider_id" id="delete-provider-id" />
+    <button type="submit" class="danger-button">Delete Provider</button>
+  </form>
+</dialog>
+
+<script>
+  (function () {
+    var buildAddressInput = function (container, value) {
+      if (!container) {
+        return;
+      }
+      var row = document.createElement("div");
+      row.className = "address-row";
+      var input = document.createElement("input");
+      input.name = "provider_addresses";
+      input.placeholder = "Street, city, state";
+      input.value = value || "";
+      var remove = document.createElement("button");
+      remove.type = "button";
+      remove.textContent = "Remove";
+      remove.addEventListener("click", function () {
+        row.remove();
+      });
+      row.appendChild(input);
+      row.appendChild(remove);
+      container.appendChild(row);
+    };
+
+    var fillAddressInputs = function (container, addresses) {
+      if (!container) {
+        return;
+      }
+      container.innerHTML = "";
+      if (!addresses || !addresses.length) {
+        buildAddressInput(container, "");
+        return;
+      }
+      addresses.forEach(function (address) {
+        buildAddressInput(container, address);
+      });
+    };
+
+    var addDialog = document.getElementById("add-provider-dialog");
+    var addOpen = document.getElementById("open-add-provider");
+    var addClose = document.getElementById("add-provider-close");
+    var addAddressBtn = document.getElementById("add-provider-address-btn");
+    var addAddressContainer = document.getElementById("add-provider-addresses");
+    var addForm = document.getElementById("add-provider-form");
+
+    if (addOpen && addDialog && addDialog.showModal) {
+      addOpen.addEventListener("click", function () {
+        if (addForm) {
+          addForm.reset();
+        }
+        fillAddressInputs(addAddressContainer, []);
+        addDialog.showModal();
+      });
+    }
+    if (addClose && addDialog && addDialog.close) {
+      addClose.addEventListener("click", function () {
+        addDialog.close();
+      });
+    }
+    if (addAddressBtn) {
+      addAddressBtn.addEventListener("click", function () {
+        buildAddressInput(addAddressContainer, "");
+      });
+    }
+
+    var editDialog = document.getElementById("edit-provider-dialog");
+    var editClose = document.getElementById("edit-provider-close");
+    var editAddressBtn = document.getElementById("edit-provider-address-btn");
+    var editAddressContainer = document.getElementById("edit-provider-addresses");
+    var rows = document.querySelectorAll(".provider-row");
+
+    if (editClose && editDialog && editDialog.close) {
+      editClose.addEventListener("click", function () {
+        editDialog.close();
+      });
+    }
+    if (editAddressBtn) {
+      editAddressBtn.addEventListener("click", function () {
+        buildAddressInput(editAddressContainer, "");
+      });
+    }
+
+    var openEdit = function (row) {
+      var addresses = [];
+      try {
+        addresses = JSON.parse(row.getAttribute("data-addresses") || "[]");
+      } catch (err) {
+        addresses = [];
+      }
+      document.getElementById("edit-provider-id").value = row.getAttribute("data-provider-id") || "";
+      document.getElementById("delete-provider-id").value = row.getAttribute("data-provider-id") || "";
+      document.getElementById("edit-provider-name").value = row.getAttribute("data-name") || "";
+      document.getElementById("edit-provider-specialty").value = row.getAttribute("data-specialty") || "";
+      document.getElementById("edit-provider-color").value = row.getAttribute("data-color") || "#C2185B";
+      document.getElementById("edit-provider-copay").value = row.getAttribute("data-copay-usd") || "0.00";
+      document.getElementById("edit-provider-notes").value = row.getAttribute("data-notes") || "";
+      fillAddressInputs(editAddressContainer, addresses);
+      if (editDialog && editDialog.showModal) {
+        editDialog.showModal();
+      }
+    };
+
+    rows.forEach(function (row) {
+      row.addEventListener("click", function () {
+        openEdit(row);
+      });
+      row.addEventListener("keydown", function (event) {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          openEdit(row);
+        }
+      });
+    });
+
+    fillAddressInputs(addAddressContainer, []);
+  })();
+</script>
 {% endblock %}

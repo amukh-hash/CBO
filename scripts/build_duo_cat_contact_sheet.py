@@ -42,7 +42,7 @@ def _build_for_root(root: Path) -> Path:
             row = idx // GRID_COLS
             x = PADDING + (col * (tile_w + PADDING))
             y = PADDING + (row * (tile_h + PADDING))
-            cell = _first_cell(atlas_root / f"{clip}.png")
+            cell = _first_cell(atlas_root / f"{clip}_p0.png")
             try:
                 out.paste(cell, (x, y), cell)
             finally:

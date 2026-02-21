@@ -1,51 +1,34 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>Policies &amp; Documents</h1>
+
 <div class="card">
-  <form method="post" action="/policies/add">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-    <label>Provider
-      <select name="provider_id">{% for p in providers %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select>
-    </label>
-    <label>Plan Type
-      <select name="plan_type">{% for t in plan_types %}<option value="{{ t.value }}">{{ t.value }}</option>{% endfor %}</select>
-    </label>
-    <label>Policy Number<input name="policy_number" required /></label>
-    <label>Monthly Premium (cents)<input name="monthly_premium_cents" type="number" min="0" value="0" /></label>
-    <label>Deductible (cents)<input name="deductible_cents" type="number" value="0" /></label>
-    <label>OOP Max (cents)<input name="oop_max_cents" type="number" value="0" /></label>
-    <button type="submit">Add Policy</button>
-  </form>
-</div>
-<div class="card">
-  <table><tr><th>ID</th><th>Provider</th><th>Plan</th><th>Premium</th><th>Deductible</th><th>OOP Max</th></tr>
-    {% for p in policies %}
-    <tr>
-      <td>{{ p.id }}</td>
-      <td>{% if p.provider_id in provider_by_id %}{{ provider_by_id[p.provider_id].name }}{% else %}{{ p.provider_id }}{% endif %}</td>
-      <td>{{ p.plan_type.value }}</td>
-      <td>{{ p.monthly_premium_cents }}</td>
-      <td>{{ p.deductible_cents }}</td>
-      <td>{{ p.oop_max_cents }}</td>
+  <div class="module-head">
+    <h2>Stored Documents</h2>
+    <button type="button" class="module-plus" id="open-upload-document" aria-label="Upload document">+</button>
+  </div>
+  {% if request.query_params.get("upload") == "invalid_type" %}
+  <p class="small">Only PDF, JPEG, and PNG files are allowed.</p>
+  {% endif %}
+  <table>
+    <tr><th>ID</th><th>Type</th><th>Name</th><th>Linked Policy</th><th>Preview</th></tr>
+    {% for d in documents %}
+    <tr class="doc-row" data-doc-id="{{ d.id }}" data-doc-name="{{ d.filename }}">
+      <td>{{ d.id }}</td>
+      <td>{{ d.doc_type.value }}</td>
+      <td>{{ d.filename }}</td>
+      <td>{% if d.policy_id and d.policy_id in policy_by_id %}#{{ d.policy_id }}{% else %}-{% endif %}</td>
+      <td><button type="button" class="open-doc" data-doc-id="{{ d.id }}">Open</button></td>
     </tr>
     {% endfor %}
   </table>
 </div>
-<div class="card">
-  <h2>Upload Policy/Documents</h2>
-  {% if request.query_params.get("upload") == "invalid_type" %}
-  <p class="small">Only PDF, JPEG, and PNG files are allowed.</p>
-  {% endif %}
+
+<dialog id="upload-document-dialog">
+  <h3>Upload Document</h3>
   <form method="post" action="/policies/documents/upload" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-    <label>Link to Policy
-      <select name="policy_id">
-        <option value="">No policy link</option>
-        {% for p in policies %}
-        <option value="{{ p.id }}">Policy #{{ p.id }}{% if p.provider_id in provider_by_id %} - {{ provider_by_id[p.provider_id].name }}{% endif %}</option>
-        {% endfor %}
-      </select>
-    </label>
+    <input type="hidden" name="policy_id" value="" />
     <label>Type
       <select name="doc_type">
         <option value="policy">Policy</option>
@@ -55,22 +38,61 @@
       </select>
     </label>
     <label>File<input name="file" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required /></label>
-    <button type="submit">Upload Document</button>
+    <div class="calendar-controls">
+      <button type="submit">Upload</button>
+      <button type="button" id="upload-document-close">Close</button>
+    </div>
   </form>
-</div>
-<div class="card">
-  <h2>Stored Documents</h2>
-  <table>
-    <tr><th>ID</th><th>Type</th><th>Name</th><th>Policy</th><th>View</th></tr>
-    {% for d in documents %}
-    <tr>
-      <td>{{ d.id }}</td>
-      <td>{{ d.doc_type.value }}</td>
-      <td>{{ d.filename }}</td>
-      <td>{% if d.policy_id and d.policy_id in policy_by_id %}#{{ d.policy_id }}{% else %}-{% endif %}</td>
-      <td><a href="/policies/documents/{{ d.id }}/view" target="_blank" rel="noopener">Open</a></td>
-    </tr>
-    {% endfor %}
-  </table>
-</div>
+</dialog>
+
+<dialog id="view-document-dialog" class="document-viewer">
+  <h3 id="view-document-title">Document</h3>
+  <iframe id="view-document-frame" title="Document preview"></iframe>
+  <form method="dialog">
+    <button type="submit">Close</button>
+  </form>
+</dialog>
+
+<script>
+  (function () {
+    var uploadDialog = document.getElementById("upload-document-dialog");
+    var uploadOpen = document.getElementById("open-upload-document");
+    var uploadClose = document.getElementById("upload-document-close");
+
+    if (uploadOpen && uploadDialog && uploadDialog.showModal) {
+      uploadOpen.addEventListener("click", function () {
+        uploadDialog.showModal();
+      });
+    }
+    if (uploadClose && uploadDialog && uploadDialog.close) {
+      uploadClose.addEventListener("click", function () {
+        uploadDialog.close();
+      });
+    }
+
+    var viewDialog = document.getElementById("view-document-dialog");
+    var viewTitle = document.getElementById("view-document-title");
+    var viewFrame = document.getElementById("view-document-frame");
+    var openButtons = document.querySelectorAll(".open-doc");
+
+    openButtons.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var docId = btn.getAttribute("data-doc-id") || "";
+        if (!docId) {
+          return;
+        }
+        var row = btn.closest("tr");
+        if (viewTitle && row) {
+          viewTitle.textContent = row.getAttribute("data-doc-name") || "Document";
+        }
+        if (viewFrame) {
+          viewFrame.src = "/policies/documents/" + docId + "/view";
+        }
+        if (viewDialog && viewDialog.showModal) {
+          viewDialog.showModal();
+        }
+      });
+    });
+  })();
+</script>
 {% endblock %}

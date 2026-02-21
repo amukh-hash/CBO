@@ -1,31 +1,14 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>Dashboard</h1>
-<div class="grid">
-  <div class="card"><strong>Providers</strong><div>{{ provider_count }}</div></div>
-  <div class="card"><strong>Month Expenses</strong><div>${{ '%.2f'|format(monthly_expense / 100) }}</div></div>
-  <div class="card"><strong>Month Premium</strong><div>${{ '%.2f'|format(monthly_premium / 100) }}</div></div>
-  <div class="card"><strong>Month Total</strong><div>${{ '%.2f'|format(monthly_total / 100) }}</div></div>
-  <div class="card"><strong>Documents</strong><div>{{ docs_count }}</div></div>
-</div>
-<div class="card">
-  <h2>Cozy Inventory</h2>
-  <div class="inventory-grid" role="grid" aria-label="Inventory Slots">
-    {% for slot in inventory_slots %}
-    <button
-      type="button"
-      class="inventory-slot{% if slot.filled %} filled{% else %} empty{% endif %}"
-      style="--slot-index: {{ slot.index }};"
-      role="gridcell"
-      aria-label="Inventory slot {{ slot.index + 1 }} {% if slot.filled %}filled{% else %}empty{% endif %}"
-    >
-      <span class="slot-pixel-icon" aria-hidden="true">{% if slot.filled %}+{% else %}-{% endif %}</span>
-    </button>
-    {% endfor %}
+
+<div class="card calendar-module">
+  <div class="module-head">
+    <h2>Appointments Calendar</h2>
+    {% if providers %}
+    <button type="button" class="module-plus" id="open-add-appointment" aria-label="Add appointment">+</button>
+    {% endif %}
   </div>
-</div>
-<div class="card">
-  <h2>Appointments Calendar</h2>
   <div class="calendar-controls">
     <a href="/?year={{ prev_year }}&month={{ prev_month }}" aria-label="Previous month">Previous</a>
     <strong>{{ current_month_label }}</strong>
@@ -54,11 +37,16 @@
             type="button"
             class="appointment-pill"
             style="--appt-color: {{ appt.provider_color }};"
+            data-appointment-id="{{ appt.id }}"
+            data-provider-id="{{ appt.provider_id }}"
             data-provider="{{ appt.provider_name }}"
             data-specialty="{{ appt.provider_specialty }}"
             data-time="{{ appt.scheduled_at_iso }}"
+            data-date="{{ appt.scheduled_date }}"
+            data-time-input="{{ appt.scheduled_time }}"
             data-display-time="{{ appt.time }}"
             data-invoice="{{ appt.estimated_invoice_cents }}"
+            data-invoice-usd="{{ appt.estimated_invoice_usd }}"
             data-location="{{ appt.location_name }}"
             data-address="{{ appt.facility_address }}"
             data-prep="{{ appt.prep_notes }}"
@@ -74,81 +62,236 @@
     </tbody>
   </table>
 </div>
+
+<div class="grid month-summary-grid">
+  <div class="card"><strong>Month Appointments</strong><div>{{ month_appointment_count }}</div></div>
+  <div class="card"><strong>Month Expenses</strong><div>${{ '%.2f'|format(monthly_expense / 100) }}</div></div>
+  <div class="card"><strong>Month Premium</strong><div>${{ '%.2f'|format(monthly_premium / 100) }}</div></div>
+  <div class="card"><strong>Month Total</strong><div>${{ '%.2f'|format(monthly_total / 100) }}</div></div>
+  <div class="card"><strong>Providers</strong><div>{{ provider_count }}</div></div>
+  <div class="card"><strong>Documents</strong><div>{{ docs_count }}</div></div>
+</div>
+
 <div class="card">
-  <h2>Add Appointment</h2>
+  <h2>Recent Expenses</h2>
+  <table>
+    <tr><th>ID</th><th>Category</th><th>Amount</th><th>Date</th></tr>
+    {% for e in recent %}
+    <tr>
+      <td>{{ e.id }}</td>
+      <td>{{ e.category }}</td>
+      <td>${{ '%.2f'|format(e.amount_cents / 100) }}</td>
+      <td>{{ e.incurred_at }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+<dialog id="add-appointment-dialog">
+  <h3>Add Appointment</h3>
   {% if providers %}
-  <form method="post" action="/appointments/add">
+  <form method="post" action="/appointments/add" id="add-appointment-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
     <label>Provider
-      <select name="provider_id" id="provider-select" required>
+      <select name="provider_id" id="add-provider-select" required>
         {% for p in providers %}
-        <option value="{{ p.id }}" data-copay="{{ p.estimated_copay_cents }}">{{ p.name }}{% if p.specialty %} ({{ p.specialty }}){% endif %}</option>
+        <option
+          value="{{ p.id }}"
+          data-copay-usd="{{ '%.2f'|format(p.estimated_copay_cents / 100) }}"
+          data-addresses='{{ provider_addresses_by_id.get(p.id, []) | tojson }}'
+        >
+          {{ p.name }}{% if p.specialty %} ({{ p.specialty }}){% endif %}
+        </option>
         {% endfor %}
       </select>
     </label>
     <label>Date<input name="appointment_date" type="date" required /></label>
     <label>Time<input name="appointment_time" type="time" required /></label>
-    <label>Estimated Invoice (cents)<input name="estimated_invoice_cents" id="estimated-invoice" type="number" min="0" value="0" required /></label>
+    <label>Estimated Invoice (USD)
+      <input name="estimated_invoice_usd" id="add-estimated-invoice" type="number" min="0" step="0.01" value="0.00" required />
+    </label>
     <label>Location<input name="location_name" placeholder="Office name / facility" /></label>
-    <label>Facility Address<textarea name="facility_address" rows="2" placeholder="Street, city, state"></textarea></label>
+    <label>Saved Provider Address
+      <select id="add-address-select">
+        <option value="">Custom / type below</option>
+      </select>
+    </label>
+    <label>Facility Address<textarea name="facility_address" id="add-facility-address" rows="2" placeholder="Street, city, state"></textarea></label>
     <label>Notes To Bring Up<textarea name="prep_notes" rows="3" placeholder="Questions or updates for this visit"></textarea></label>
     <label>Appointment Notes<textarea name="notes" rows="3" placeholder="Any context for this appointment"></textarea></label>
-    <button type="submit">Add Appointment</button>
+    <div class="calendar-controls">
+      <button type="submit">Add Appointment</button>
+      <button type="button" id="add-appointment-close">Close</button>
+    </div>
   </form>
   {% else %}
   <p class="small">Add a provider first before scheduling appointments.</p>
   {% endif %}
-</div>
-<div class="card">
-  <h2>Recent Expenses</h2>
-  <table>
-    <tr><th>ID</th><th>Category</th><th>Cents</th><th>Date</th></tr>
-    {% for e in recent %}<tr><td>{{ e.id }}</td><td>{{ e.category }}</td><td>{{ e.amount_cents }}</td><td>{{ e.incurred_at }}</td></tr>{% endfor %}
-  </table>
-</div>
+</dialog>
+
 <dialog id="appointment-dialog">
-  <h3 id="dialog-provider"></h3>
-  <p><strong>Specialty:</strong> <span id="dialog-specialty"></span></p>
-  <p><strong>When:</strong> <span id="dialog-time"></span></p>
-  <p><strong>Estimated Invoice:</strong> $<span id="dialog-invoice"></span></p>
-  <p><strong>Location:</strong> <span id="dialog-location"></span></p>
-  <p><strong>Address:</strong> <span id="dialog-address"></span></p>
-  <p><strong>Notes To Bring Up:</strong> <span id="dialog-prep"></span></p>
-  <p><strong>Appointment Notes:</strong> <span id="dialog-notes"></span></p>
-  <form method="dialog">
-    <button type="submit">Close</button>
+  <h3>Edit Appointment</h3>
+  <form method="post" action="/appointments/update" id="appointment-edit-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <input type="hidden" name="appointment_id" id="dialog-appointment-id" />
+    <label>Provider
+      <select name="provider_id" id="dialog-provider-id" required>
+        {% for p in providers %}
+        <option
+          value="{{ p.id }}"
+          data-copay-usd="{{ '%.2f'|format(p.estimated_copay_cents / 100) }}"
+          data-addresses='{{ provider_addresses_by_id.get(p.id, []) | tojson }}'
+        >
+          {{ p.name }}{% if p.specialty %} ({{ p.specialty }}){% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Date<input name="appointment_date" id="dialog-date" type="date" required /></label>
+    <label>Time<input name="appointment_time" id="dialog-time-input" type="time" required /></label>
+    <label>Estimated Invoice (USD)
+      <input name="estimated_invoice_usd" id="dialog-invoice-input" type="number" min="0" step="0.01" required />
+    </label>
+    <label>Location<input name="location_name" id="dialog-location-input" /></label>
+    <label>Saved Provider Address
+      <select id="dialog-address-select">
+        <option value="">Custom / type below</option>
+      </select>
+    </label>
+    <label>Facility Address<textarea name="facility_address" id="dialog-address-input" rows="2"></textarea></label>
+    <label>Notes To Bring Up<textarea name="prep_notes" id="dialog-prep-input" rows="3"></textarea></label>
+    <label>Appointment Notes<textarea name="notes" id="dialog-notes-input" rows="3"></textarea></label>
+    <p><strong>Current Timestamp:</strong> <span id="dialog-time"></span></p>
+    <div class="calendar-controls">
+      <button type="submit">Save Changes</button>
+      <button type="button" id="dialog-close">Close</button>
+    </div>
+  </form>
+  <form method="post" action="/appointments/delete" id="appointment-delete-form" class="dialog-danger-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <input type="hidden" name="appointment_id" id="dialog-delete-appointment-id" />
+    <button type="submit" class="danger-button">Delete Appointment</button>
   </form>
 </dialog>
+
 <script>
   (function () {
-    var providerSelect = document.getElementById("provider-select");
-    var invoiceInput = document.getElementById("estimated-invoice");
-    if (providerSelect && invoiceInput) {
-      var syncCopay = function () {
-        var selected = providerSelect.options[providerSelect.selectedIndex];
-        var copay = selected ? selected.getAttribute("data-copay") : "0";
-        invoiceInput.value = copay || "0";
-      };
-      syncCopay();
-      providerSelect.addEventListener("change", syncCopay);
+    var parseAddresses = function (selectEl) {
+      if (!selectEl || !selectEl.options.length) {
+        return [];
+      }
+      var selected = selectEl.options[selectEl.selectedIndex];
+      if (!selected) {
+        return [];
+      }
+      try {
+        return JSON.parse(selected.getAttribute("data-addresses") || "[]");
+      } catch (err) {
+        return [];
+      }
+    };
+
+    var populateAddressSelect = function (addressSelect, addresses, currentValue) {
+      if (!addressSelect) {
+        return;
+      }
+      addressSelect.innerHTML = "";
+      var customOpt = document.createElement("option");
+      customOpt.value = "";
+      customOpt.textContent = "Custom / type below";
+      addressSelect.appendChild(customOpt);
+      addresses.forEach(function (address) {
+        var opt = document.createElement("option");
+        opt.value = address;
+        opt.textContent = address;
+        addressSelect.appendChild(opt);
+      });
+      if (currentValue && addresses.indexOf(currentValue) !== -1) {
+        addressSelect.value = currentValue;
+      } else {
+        addressSelect.value = "";
+      }
+    };
+
+    var wireAddressCopy = function (addressSelect, addressInput) {
+      if (!addressSelect || !addressInput) {
+        return;
+      }
+      addressSelect.addEventListener("change", function () {
+        if (addressSelect.value) {
+          addressInput.value = addressSelect.value;
+        }
+      });
+    };
+
+    var addDialog = document.getElementById("add-appointment-dialog");
+    var openAddButton = document.getElementById("open-add-appointment");
+    var closeAddButton = document.getElementById("add-appointment-close");
+    var addProviderSelect = document.getElementById("add-provider-select");
+    var addInvoiceInput = document.getElementById("add-estimated-invoice");
+    var addAddressSelect = document.getElementById("add-address-select");
+    var addAddressInput = document.getElementById("add-facility-address");
+
+    if (openAddButton && addDialog && addDialog.showModal) {
+      openAddButton.addEventListener("click", function () {
+        if (addProviderSelect && addInvoiceInput) {
+          var selected = addProviderSelect.options[addProviderSelect.selectedIndex];
+          addInvoiceInput.value = selected ? (selected.getAttribute("data-copay-usd") || "0.00") : "0.00";
+          populateAddressSelect(addAddressSelect, parseAddresses(addProviderSelect), addAddressInput ? addAddressInput.value : "");
+        }
+        addDialog.showModal();
+      });
     }
+    if (closeAddButton && addDialog && addDialog.close) {
+      closeAddButton.addEventListener("click", function () {
+        addDialog.close();
+      });
+    }
+    if (addProviderSelect) {
+      addProviderSelect.addEventListener("change", function () {
+        var selected = addProviderSelect.options[addProviderSelect.selectedIndex];
+        if (addInvoiceInput && selected) {
+          addInvoiceInput.value = selected.getAttribute("data-copay-usd") || "0.00";
+        }
+        populateAddressSelect(addAddressSelect, parseAddresses(addProviderSelect), "");
+      });
+    }
+    wireAddressCopy(addAddressSelect, addAddressInput);
 
     var dialog = document.getElementById("appointment-dialog");
+    var dialogClose = document.getElementById("dialog-close");
     var pills = document.querySelectorAll(".appointment-pill");
-    var toMoney = function (cents) {
-      var value = parseInt(cents || "0", 10);
-      return (value / 100).toFixed(2);
-    };
+    var editProviderSelect = document.getElementById("dialog-provider-id");
+    var editAddressSelect = document.getElementById("dialog-address-select");
+    var editAddressInput = document.getElementById("dialog-address-input");
+
+    if (dialogClose && dialog && dialog.close) {
+      dialogClose.addEventListener("click", function () {
+        dialog.close();
+      });
+    }
+
+    if (editProviderSelect) {
+      editProviderSelect.addEventListener("change", function () {
+        populateAddressSelect(editAddressSelect, parseAddresses(editProviderSelect), editAddressInput ? editAddressInput.value : "");
+      });
+    }
+    wireAddressCopy(editAddressSelect, editAddressInput);
+
     pills.forEach(function (pill) {
       pill.addEventListener("click", function () {
-        document.getElementById("dialog-provider").textContent = pill.dataset.provider || "";
-        document.getElementById("dialog-specialty").textContent = pill.dataset.specialty || "-";
+        document.getElementById("dialog-appointment-id").value = pill.dataset.appointmentId || "";
+        document.getElementById("dialog-delete-appointment-id").value = pill.dataset.appointmentId || "";
+        document.getElementById("dialog-provider-id").value = pill.dataset.providerId || "";
+        document.getElementById("dialog-date").value = pill.dataset.date || "";
+        document.getElementById("dialog-time-input").value = pill.dataset.timeInput || "";
+        document.getElementById("dialog-invoice-input").value = pill.dataset.invoiceUsd || "0.00";
+        document.getElementById("dialog-location-input").value = pill.dataset.location || "";
+        document.getElementById("dialog-address-input").value = pill.dataset.address || "";
+        document.getElementById("dialog-prep-input").value = pill.dataset.prep || "";
+        document.getElementById("dialog-notes-input").value = pill.dataset.notes || "";
         document.getElementById("dialog-time").textContent = pill.dataset.time || "";
-        document.getElementById("dialog-invoice").textContent = toMoney(pill.dataset.invoice);
-        document.getElementById("dialog-location").textContent = pill.dataset.location || "-";
-        document.getElementById("dialog-address").textContent = pill.dataset.address || "-";
-        document.getElementById("dialog-prep").textContent = pill.dataset.prep || "-";
-        document.getElementById("dialog-notes").textContent = pill.dataset.notes || "-";
+        populateAddressSelect(editAddressSelect, parseAddresses(editProviderSelect), pill.dataset.address || "");
         if (dialog && dialog.showModal) {
           dialog.showModal();
         }

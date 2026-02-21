@@ -397,11 +397,12 @@
 
     useEffect(function () {
       var tabs = listTabs();
+      var requiresDoubleClick = Boolean(document.querySelector(".left-tree.exact-tree .tree-nav.exact-tree-nav"));
       var listeners = tabs.map(function (tab) {
-        function onTabClick(event) {
+        function activateTab(event) {
           if (
             event.defaultPrevented ||
-            event.button !== 0 ||
+            (event.button != null && event.button !== 0) ||
             event.metaKey ||
             event.ctrlKey ||
             event.shiftKey ||
@@ -440,13 +441,58 @@
           }, TOTAL_MOVE_MS);
         }
 
+        function onTabClick(event) {
+          if (requiresDoubleClick) {
+            event.preventDefault();
+            return;
+          }
+          activateTab(event);
+        }
+
+        function onTabDoubleClick(event) {
+          if (!requiresDoubleClick) {
+            return;
+          }
+          activateTab(event);
+        }
+
+        function onTagActivate(event) {
+          if (!requiresDoubleClick) {
+            return;
+          }
+          activateTab(event);
+        }
+
+        function onTabKeydown(event) {
+          if (!requiresDoubleClick) {
+            return;
+          }
+          if (event.key !== "Enter" && event.key !== " ") {
+            return;
+          }
+          activateTab(event);
+        }
+
         tab.addEventListener("click", onTabClick);
-        return { tab: tab, handler: onTabClick };
+        tab.addEventListener("dblclick", onTabDoubleClick);
+        tab.addEventListener("tree-tag-activate", onTagActivate);
+        tab.addEventListener("keydown", onTabKeydown);
+
+        return {
+          tab: tab,
+          onTabClick: onTabClick,
+          onTabDoubleClick: onTabDoubleClick,
+          onTagActivate: onTagActivate,
+          onTabKeydown: onTabKeydown,
+        };
       });
 
       return function () {
         listeners.forEach(function (entry) {
-          entry.tab.removeEventListener("click", entry.handler);
+          entry.tab.removeEventListener("click", entry.onTabClick);
+          entry.tab.removeEventListener("dblclick", entry.onTabDoubleClick);
+          entry.tab.removeEventListener("tree-tag-activate", entry.onTagActivate);
+          entry.tab.removeEventListener("keydown", entry.onTabKeydown);
         });
         if (navTimeoutRef.current) {
           clearTimeout(navTimeoutRef.current);

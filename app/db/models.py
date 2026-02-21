@@ -90,6 +90,18 @@ class InsuranceProvider(Base):
     circuit_failures: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class ProviderAddress(Base):
+    __tablename__ = "provider_addresses"
+    __table_args__ = (UniqueConstraint("provider_id", "address_text", name="uq_provider_addresses_provider_text"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    provider_id: Mapped[int] = mapped_column(ForeignKey("insurance_providers.id"), index=True)
+    label: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # PHI classification: provider location details
+    address_text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+
 class Policy(Base):
     __tablename__ = "policies"
 
@@ -222,6 +234,7 @@ class Document(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     owner_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     policy_id: Mapped[int | None] = mapped_column(ForeignKey("policies.id"), index=True, nullable=True)
+    expense_id: Mapped[int | None] = mapped_column(ForeignKey("expense_line_items.id"), index=True, nullable=True)
     doc_type: Mapped[DocumentType] = mapped_column(Enum(DocumentType), default=DocumentType.RECEIPT)
     filename: Mapped[str] = mapped_column(String(255))
     storage_path: Mapped[str] = mapped_column(String(512), unique=True)

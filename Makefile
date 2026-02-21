@@ -1,7 +1,7 @@
 .PHONY: duo-cats-sources duo-cats-build duo-cats-gifs duo-cats-contact-sheet duo-cats-validate duo-cats-all
 
 duo-cats-sources:
-	python scripts/generate_duo_cat_sources.py
+	python scripts/generate_duo_cat_sources.py --debug --verbose
 
 duo-cats-build:
 	python scripts/build_duo_cat_atlases.py
@@ -15,4 +15,4 @@ duo-cats-contact-sheet:
 duo-cats-validate:
 	python scripts/validate_duo_cat_pack.py
 
-duo-cats-all: duo-cats-sources duo-cats-build duo-cats-gifs duo-cats-contact-sheet duo-cats-validate
+duo-cats-all: duo-cats-sources duo-cats-build duo-cats-gifs duo-cats-validate
