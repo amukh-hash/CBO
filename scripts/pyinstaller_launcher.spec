@@ -1,7 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os
+spec_dir = os.path.abspath(SPECPATH)
+
 a = Analysis(
-    ['scripts/launcher.py'],
+    [os.path.join(spec_dir, 'launcher.py')],
     pathex=[],
     binaries=[],
     datas=[],

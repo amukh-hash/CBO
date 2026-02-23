@@ -29,7 +29,7 @@ def main() -> None:
         webbrowser.open(f"http://{host}:{port}/auth/login")
 
     threading.Thread(target=open_when_ready, daemon=True).start()
-    uvicorn.run("app.main:app", host=host, port=port, reload=False, access_log=False)
+    uvicorn.run("app.main:app", host=host, port=port, reload=False, access_log=False, log_config=None)
 
 
 if __name__ == "__main__":

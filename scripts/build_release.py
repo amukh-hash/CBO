@@ -29,6 +29,7 @@ def ensure_build_env() -> Path:
     py = _venv_python()
     run([str(py), "-m", "pip", "install", "--upgrade", "pip"])
     run([str(py), "-m", "pip", "install", "-r", "requirements-build.txt"])
+    run([str(py), "-m", "pip", "install", "-e", "."])
     return py
 
 
@@ -56,8 +57,8 @@ def write_manifest() -> None:
 
 def main() -> None:
     py = ensure_build_env()
-    run([str(py), "-m", "PyInstaller", "--noconfirm", "scripts/pyinstaller_app.spec"])
-    run([str(py), "-m", "PyInstaller", "--noconfirm", "scripts/pyinstaller_launcher.spec"])
+    run([str(py), "-m", "PyInstaller", "--noconfirm", "--clean", "scripts/pyinstaller_app.spec"])
+    run([str(py), "-m", "PyInstaller", "--noconfirm", "--clean", "scripts/pyinstaller_launcher.spec"])
     write_manifest()
 
 

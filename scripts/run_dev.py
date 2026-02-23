@@ -1,12 +1,22 @@
 from __future__ import annotations
 
+import os
+import pathlib
+import sys
 import threading
 import time
 import webbrowser
 
-import uvicorn
+# Ensure CWD is the project root so Python resolves 'app' from this project,
+# not from a sibling directory that also has an 'app' package.
+_PROJECT_ROOT = str(pathlib.Path(__file__).resolve().parent.parent)
+os.chdir(_PROJECT_ROOT)
+# Insert at position 0 so this project's 'app' package takes absolute priority
+sys.path.insert(0, _PROJECT_ROOT)
 
-from app.core.config import get_settings
+import uvicorn  # noqa: E402
+
+from app.core.config import get_settings  # noqa: E402
 
 
 def main() -> None:

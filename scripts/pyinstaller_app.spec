@@ -1,12 +1,16 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os
+spec_dir = os.path.abspath(SPECPATH)
+root_dir = os.path.dirname(spec_dir)
+
 a = Analysis(
-    ['scripts/run_app.py'],
+    [os.path.join(spec_dir, 'run_app.py')],
     pathex=[],
     binaries=[],
     datas=[
-        ('app/ui/templates', 'app/ui/templates'),
-        ('app/ui/static', 'app/ui/static'),
+        (os.path.join(root_dir, 'app', 'ui', 'templates'), 'app/ui/templates'),
+        (os.path.join(root_dir, 'app', 'ui', 'static'), 'app/ui/static'),
     ],
     hiddenimports=[
         'cryptography',
@@ -15,6 +19,9 @@ a = Analysis(
         'keyring.backends.Windows',
         'jinja2',
         'pyotp',
+        'app.main',
+        'uvicorn',
+        'sqlite3',
     ],
     hookspath=[],
     hooksconfig={},
